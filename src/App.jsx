@@ -424,6 +424,9 @@ export default function App() {
         {/* ── Upload screen ── */}
         {!sourceImage && (
           <section className="hero-section">
+          
+            <h1 className="hero-title">Resize, Crop &amp;<br /><span>Enhance Images</span></h1>
+            <p className="hero-sub">Upload once. Get perfectly cropped versions — with one-click Quick Enhance or Real-ESRGAN AI Enhancement.</p>
 
             <div
               className={`upload-zone ${isDragging ? 'dragging' : ''}`}
