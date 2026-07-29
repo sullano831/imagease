@@ -2,6 +2,15 @@
  * Crops and resizes an image using object-fit: cover logic (centered crop).
  */
 export function cropCover(img, targetW, targetH, mimeType = 'image/webp', quality = 0.92) {
+  return cropCoverWithOffset(img, targetW, targetH, 0, 0, mimeType, quality)
+}
+
+/**
+ * Crops with a custom pixel offset from the centered position.
+ * offsetX/offsetY: how many px to shift the image (positive = right/down).
+ * Automatically clamped so the image always fully covers the target frame.
+ */
+export function cropCoverWithOffset(img, targetW, targetH, offsetX, offsetY, mimeType = 'image/webp', quality = 0.92) {
   const canvas = document.createElement('canvas')
   canvas.width = targetW
   canvas.height = targetH
@@ -12,10 +21,16 @@ export function cropCover(img, targetW, targetH, mimeType = 'image/webp', qualit
   const scale = Math.max(targetW / srcW, targetH / srcH)
   const scaledW = srcW * scale
   const scaledH = srcH * scale
-  const offsetX = (targetW - scaledW) / 2
-  const offsetY = (targetH - scaledH) / 2
 
-  ctx.drawImage(img, offsetX, offsetY, scaledW, scaledH)
+  // Centered base position
+  const centerX = (targetW - scaledW) / 2
+  const centerY = (targetH - scaledH) / 2
+
+  // Apply offset, clamped so image always fully covers the frame
+  const x = Math.max(targetW - scaledW, Math.min(0, centerX + offsetX))
+  const y = Math.max(targetH - scaledH, Math.min(0, centerY + offsetY))
+
+  ctx.drawImage(img, x, y, scaledW, scaledH)
   return canvas.toDataURL(mimeType, quality)
 }
 

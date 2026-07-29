@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import JSZip from 'jszip'
-import { cropCover, loadImage, downloadDataURL, dataURLtoBlob, enhanceImage, MIME_MAP, EXT_MAP } from './imageUtils'
+import { cropCoverWithOffset, loadImage, downloadDataURL, dataURLtoBlob, enhanceImage, MIME_MAP, EXT_MAP } from './imageUtils'
 import { aiEnhance, loadApiKeys } from './aiEnhance'
 import Settings from './Settings'
 import './App.css'
@@ -91,14 +91,139 @@ function GearIcon() {
   )
 }
 
+function CropIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
+      <polyline points="6 2 6 8 2 8"/><polyline points="18 22 18 16 22 16"/>
+      <rect x="6" y="8" width="12" height="8" rx="1"/>
+    </svg>
+  )
+}
+
+// ── Crop Editor ──────────────────────────────────────────────────
+
+const EDITOR_MAX = 300 // max display size for the editor frame
+
+function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, currentOffset, onApply, onCancel }) {
+  // Scale to fit within EDITOR_MAX
+  const displayScale = Math.min(EDITOR_MAX / targetW, EDITOR_MAX / targetH, 1)
+  const frameW = Math.round(targetW * displayScale)
+  const frameH = Math.round(targetH * displayScale)
+
+  // Image rendered at cover scale × displayScale
+  const coverScale = Math.max(targetW / sourceImg.naturalWidth, targetH / sourceImg.naturalHeight)
+  const imgW = Math.round(sourceImg.naturalWidth * coverScale * displayScale)
+  const imgH = Math.round(sourceImg.naturalHeight * coverScale * displayScale)
+
+  // Offset state in display pixels (starts from currentOffset scaled down)
+  const [offset, setOffset] = useState({
+    x: Math.max(frameW - imgW, Math.min(0, (currentOffset.x / targetW) * frameW)),
+    y: Math.max(frameH - imgH, Math.min(0, (currentOffset.y / targetH) * frameH)),
+  })
+
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val))
+  const dragging = useRef(null)
+
+  const startDrag = (clientX, clientY) => {
+    dragging.current = { startX: clientX - offset.x, startY: clientY - offset.y }
+  }
+
+  const moveDrag = (clientX, clientY) => {
+    if (!dragging.current) return
+    setOffset({
+      x: clamp(clientX - dragging.current.startX, frameW - imgW, 0),
+      y: clamp(clientY - dragging.current.startY, frameH - imgH, 0),
+    })
+  }
+
+  const endDrag = () => { dragging.current = null }
+
+  // Mouse events
+  const onMouseDown = (e) => { e.preventDefault(); startDrag(e.clientX, e.clientY) }
+  const onMouseMove = (e) => moveDrag(e.clientX, e.clientY)
+
+  // Touch events
+  const onTouchStart = (e) => { const t = e.touches[0]; startDrag(t.clientX, t.clientY) }
+  const onTouchMove = (e) => { e.preventDefault(); const t = e.touches[0]; moveDrag(t.clientX, t.clientY) }
+
+  const handleApply = () => {
+    // Convert display offset back to real canvas coordinates
+    const realOffsetX = (offset.x / displayScale)
+    const realOffsetY = (offset.y / displayScale)
+    // These are absolute positions, convert to offset from center
+    const centerX = (targetW - sourceImg.naturalWidth * coverScale) / 2
+    const centerY = (targetH - sourceImg.naturalHeight * coverScale) / 2
+    const deltaX = realOffsetX - centerX
+    const deltaY = realOffsetY - centerY
+    const dataURL = cropCoverWithOffset(sourceImg, targetW, targetH, deltaX, deltaY, mimeType)
+    onApply(dataURL, { x: deltaX, y: deltaY })
+  }
+
+  const handleReset = () => {
+    setOffset({ x: (frameW - imgW) / 2, y: (frameH - imgH) / 2 })
+  }
+
+  return (
+    <div className="crop-editor">
+      <p className="crop-hint">Drag to reposition · frame = output size</p>
+
+      {/* Interactive frame */}
+      <div
+        className="crop-frame"
+        style={{ width: frameW, height: frameH }}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={endDrag}
+        onMouseLeave={endDrag}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={endDrag}
+      >
+        {/* The image, draggable inside */}
+        <img
+          src={sourceImgSrc || sourceImg.src}
+          alt="crop preview"
+          draggable={false}
+          style={{ position: 'absolute', width: imgW, height: imgH, left: offset.x, top: offset.y, userSelect: 'none', pointerEvents: 'none' }}
+        />
+
+        {/* Rule-of-thirds grid */}
+        <svg className="crop-grid" width={frameW} height={frameH} viewBox={`0 0 ${frameW} ${frameH}`}>
+          <line x1={frameW / 3} y1="0" x2={frameW / 3} y2={frameH} />
+          <line x1={(frameW / 3) * 2} y1="0" x2={(frameW / 3) * 2} y2={frameH} />
+          <line x1="0" y1={frameH / 3} x2={frameW} y2={frameH / 3} />
+          <line x1="0" y1={(frameH / 3) * 2} x2={frameW} y2={(frameH / 3) * 2} />
+          {/* Center crosshair */}
+          <circle cx={frameW / 2} cy={frameH / 2} r="3" />
+        </svg>
+
+        {/* Corner brackets */}
+        <div className="crop-corner tl" /><div className="crop-corner tr" />
+        <div className="crop-corner bl" /><div className="crop-corner br" />
+      </div>
+
+      {/* Dimension label */}
+      <div className="crop-dims-label">{targetW} × {targetH} px</div>
+
+      {/* Actions */}
+      <div className="crop-actions">
+        <button className="btn btn-ghost btn-sm" onClick={handleReset}>↺ Center</button>
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
+        <button className="btn btn-sm" onClick={handleApply}>Apply Crop</button>
+      </div>
+    </div>
+  )
+}
+
 // ── Image Card ───────────────────────────────────────────────────
 
-function ImageCard({ result, format, mime, onEnhanced, onAiEnhanced }) {
+function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, onAiEnhanced, onCropApplied }) {
   const [localEnhancing, setLocalEnhancing] = useState(false)
   const [aiEnhancing, setAiEnhancing] = useState(false)
   const [aiStatus, setAiStatus] = useState(null)
   const [mode, setMode] = useState('original') // 'original' | 'enhanced' | 'ai'
   const [showOriginal, setShowOriginal] = useState(false)
+  const [showCropEditor, setShowCropEditor] = useState(false)
 
   const { tw, th } = thumbDimensions(result.width, result.height)
 
@@ -122,10 +247,7 @@ function ImageCard({ result, format, mime, onEnhanced, onAiEnhanced }) {
   const handleAiEnhance = async () => {
     const apiKeys = loadApiKeys()
     const hasKeys = Object.values(apiKeys).some(v => v?.trim())
-    if (!hasKeys) {
-      onAiEnhanced(result.name, null, 'NO_KEYS')
-      return
-    }
+    if (!hasKeys) { onAiEnhanced(result.name, null, 'NO_KEYS'); return }
     if (result.aiURL) { setMode('ai'); return }
     setAiEnhancing(true)
     try {
@@ -139,81 +261,88 @@ function ImageCard({ result, format, mime, onEnhanced, onAiEnhanced }) {
     setAiEnhancing(false)
   }
 
+  const handleCropApply = (newDataURL, newOffset) => {
+    onCropApplied(result.name, newDataURL, newOffset)
+    setMode('original')
+    setShowCropEditor(false)
+  }
+
   const badge = mode === 'ai' ? { label: 'AI Enhanced', color: '#0071e3' }
     : mode === 'enhanced' ? { label: 'Enhanced', color: '#7c3aed' }
     : null
 
   return (
-    <div className={`image-card ${isEnhanced ? 'card-enhanced' : ''}`}
+    <div className={`image-card ${isEnhanced ? 'card-enhanced' : ''} ${showCropEditor ? 'card-editing' : ''}`}
       style={isEnhanced ? { '--card-glow': badge?.color } : {}}>
 
-      {badge && (
+      {badge && !showCropEditor && (
         <div className="enhanced-badge" style={{ background: badge.color }}>
           <SparkleIcon /> {badge.label}
         </div>
       )}
 
-      <div className="thumb-wrapper" style={{ width: tw, height: th }}>
-        <img src={activeURL} alt={result.name} style={{ width: tw, height: th, display: 'block' }} />
-        {isEnhanced && (
-          <button
-            className="compare-btn"
-            onMouseDown={() => setShowOriginal(true)}
-            onMouseUp={() => setShowOriginal(false)}
-            onMouseLeave={() => setShowOriginal(false)}
-            onTouchStart={() => setShowOriginal(true)}
-            onTouchEnd={() => setShowOriginal(false)}
-          >
-            {showOriginal ? 'Original' : 'Hold to compare'}
-          </button>
-        )}
-      </div>
+      {/* ── Normal view ── */}
+      {!showCropEditor && (
+        <>
+          <div className="thumb-wrapper" style={{ width: tw, height: th }}>
+            <img src={activeURL} alt={result.name} style={{ width: tw, height: th, display: 'block' }} />
+            {isEnhanced && (
+              <button
+                className="compare-btn"
+                onMouseDown={() => setShowOriginal(true)}
+                onMouseUp={() => setShowOriginal(false)}
+                onMouseLeave={() => setShowOriginal(false)}
+                onTouchStart={() => setShowOriginal(true)}
+                onTouchEnd={() => setShowOriginal(false)}
+              >
+                {showOriginal ? 'Original' : 'Hold to compare'}
+              </button>
+            )}
+          </div>
 
-      <div className="card-info">
-        <span className="card-name">{result.name}</span>
-        <span className="card-dims">{result.width} × {result.height} px</span>
-      </div>
+          <div className="card-info">
+            <span className="card-name">{result.name}</span>
+            <span className="card-dims">{result.width} × {result.height} px</span>
+          </div>
 
-      {/* AI status while processing */}
-      {aiStatus && <div className="card-ai-status"><span className="mini-spinner" />{aiStatus}</div>}
+          {aiStatus && <div className="card-ai-status"><span className="mini-spinner" />{aiStatus}</div>}
 
-      <div className="card-actions">
-        {/* Quick Enhance */}
-        <button
-          className={`btn btn-enhance btn-sm ${mode === 'enhanced' ? 'btn-active-mode' : ''}`}
-          onClick={handleLocalEnhance}
-          disabled={localEnhancing || aiEnhancing}
-          title="Unsharp Mask — instant, no API"
-        >
-          {localEnhancing
-            ? <><span className="mini-spinner" />Enhancing…</>
-            : <><SparkleIcon />Quick</>}
-        </button>
+          <div className="card-actions">
+            <button className="btn btn-crop btn-sm" onClick={() => setShowCropEditor(true)}
+              title="Drag to reposition crop">
+              <CropIcon /> Adjust
+            </button>
+            <button className={`btn btn-enhance btn-sm ${mode === 'enhanced' ? 'btn-active-mode' : ''}`}
+              onClick={handleLocalEnhance} disabled={localEnhancing || aiEnhancing} title="Quick enhance — no API">
+              {localEnhancing ? <><span className="mini-spinner" />…</> : <><SparkleIcon />Quick</>}
+            </button>
+            <button className={`btn btn-ai-enhance btn-sm ${mode === 'ai' ? 'btn-active-mode' : ''}`}
+              onClick={handleAiEnhance} disabled={localEnhancing || aiEnhancing} title="AI enhance — needs API key">
+              {aiEnhancing ? <><span className="mini-spinner" />…</> : <><BrainIcon />AI</>}
+            </button>
+            {isEnhanced && (
+              <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setMode('original')} title="Reset">↩</button>
+            )}
+            <button className="btn btn-ghost btn-sm btn-icon" onClick={() => downloadDataURL(activeURL, filename)} title="Download">
+              <DownloadIcon />
+            </button>
+          </div>
+        </>
+      )}
 
-        {/* AI Enhance */}
-        <button
-          className={`btn btn-ai-enhance btn-sm ${mode === 'ai' ? 'btn-active-mode' : ''}`}
-          onClick={handleAiEnhance}
-          disabled={localEnhancing || aiEnhancing}
-          title="Real-ESRGAN AI — requires API key"
-        >
-          {aiEnhancing
-            ? <><span className="mini-spinner" />AI…</>
-            : <><BrainIcon />AI</>}
-        </button>
-
-        {/* Reset if enhanced */}
-        {isEnhanced && (
-          <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setMode('original')} title="Reset to original">
-            ↩
-          </button>
-        )}
-
-        {/* Download */}
-        <button className="btn btn-ghost btn-sm" onClick={() => downloadDataURL(activeURL, filename)}>
-          <DownloadIcon />
-        </button>
-      </div>
+      {/* ── Crop editor ── */}
+      {showCropEditor && sourceImg && (
+        <CropEditor
+          sourceImg={sourceImg}
+          sourceImgSrc={sourceImgSrc}
+          targetW={result.width}
+          targetH={result.height}
+          mimeType={mime}
+          currentOffset={result.cropOffset || { x: 0, y: 0 }}
+          onApply={handleCropApply}
+          onCancel={() => setShowCropEditor(false)}
+        />
+      )}
     </div>
   )
 }
@@ -271,7 +400,8 @@ export default function App() {
       name: size.name,
       width: size.width,
       height: size.height,
-      dataURL: cropCover(img, size.width, size.height, m),
+      dataURL: cropCoverWithOffset(img, size.width, size.height, 0, 0, m),
+      cropOffset: { x: 0, y: 0 },
       enhancedURL: null,
       aiURL: null,
     })), [])
@@ -306,6 +436,11 @@ export default function App() {
 
   const handleEnhanced = (name, enhancedURL) =>
     setResults(prev => prev.map(r => r.name === name ? { ...r, enhancedURL } : r))
+
+  const handleCropApplied = (name, newDataURL, newOffset) =>
+    setResults(prev => prev.map(r =>
+      r.name === name ? { ...r, dataURL: newDataURL, cropOffset: newOffset, enhancedURL: null, aiURL: null } : r
+    ))
 
   const handleAiEnhanced = (name, aiURL, error, provider) => {
     if (error === 'NO_KEYS') {
@@ -571,8 +706,11 @@ export default function App() {
                     result={r}
                     format={format}
                     mime={mime}
+                    sourceImg={sourceImage?.img}
+                    sourceImgSrc={sourceImage?.src}
                     onEnhanced={handleEnhanced}
                     onAiEnhanced={handleAiEnhanced}
+                    onCropApplied={handleCropApplied}
                   />
                 ))}
               </div>

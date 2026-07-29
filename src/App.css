@@ -484,6 +484,82 @@ body {
 /* ── Header actions ──────────────────────────────────────────── */
 .header-actions { display: flex; align-items: center; gap: 0.5rem; }
 
+/* ── Crop button ─────────────────────────────────────────────── */
+.btn-crop {
+  background: var(--glass);
+  border-color: var(--glass-border-soft);
+  color: var(--text-secondary);
+}
+.btn-crop:hover { border-color: #0071e3; color: #0071e3; background: var(--accent-soft); }
+
+/* ── Card editing state ──────────────────────────────────────── */
+.card-editing {
+  grid-column: span 1;
+  align-items: center;
+}
+
+/* ── Crop editor ─────────────────────────────────────────────── */
+.crop-editor {
+  width: 100%;
+  display: flex; flex-direction: column; align-items: center; gap: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.crop-hint {
+  font-size: 0.75rem; color: var(--text-tertiary);
+  text-align: center; margin: 0;
+}
+
+.crop-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-sm);
+  border: 1.5px solid var(--accent);
+  cursor: grab;
+  box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow-sm);
+  user-select: none;
+  touch-action: none;
+}
+.crop-frame:active { cursor: grabbing; }
+
+.crop-frame img { display: block; }
+
+/* Rule-of-thirds grid */
+.crop-grid {
+  position: absolute; inset: 0; pointer-events: none;
+}
+.crop-grid line {
+  stroke: rgba(255,255,255,0.30);
+  stroke-width: 0.75;
+  stroke-dasharray: 3 3;
+}
+.crop-grid circle {
+  fill: rgba(255,255,255,0.5);
+}
+
+/* Corner brackets */
+.crop-corner {
+  position: absolute; width: 14px; height: 14px;
+  border-color: #fff;
+  border-style: solid;
+  border-width: 0;
+  pointer-events: none;
+}
+.crop-corner.tl { top: 5px;  left: 5px;  border-top-width: 2px; border-left-width: 2px;  border-radius: 2px 0 0 0; }
+.crop-corner.tr { top: 5px;  right: 5px; border-top-width: 2px; border-right-width: 2px; border-radius: 0 2px 0 0; }
+.crop-corner.bl { bottom: 5px; left: 5px;  border-bottom-width: 2px; border-left-width: 2px;  border-radius: 0 0 0 2px; }
+.crop-corner.br { bottom: 5px; right: 5px; border-bottom-width: 2px; border-right-width: 2px; border-radius: 0 0 2px 0; }
+
+.crop-dims-label {
+  font-size: 0.72rem; color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.03em;
+}
+
+.crop-actions {
+  display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; justify-content: center;
+  width: 100%;
+}
+
 /* ── Enhance buttons ─────────────────────────────────────────── */
 .btn-enhance {
   background: linear-gradient(135deg, #7c3aed, #6d28d9);
