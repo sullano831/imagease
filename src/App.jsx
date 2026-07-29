@@ -203,7 +203,6 @@ export default function App() {
         {/* ── Upload screen ── */}
         {!sourceImage && (
           <section className="hero-section">
-            <span className="hero-eyebrow">Client-side · No uploads · Instant</span>
 
             <h1 className="hero-title">
               Resize &amp; Crop<br />
