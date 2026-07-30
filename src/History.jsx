@@ -117,7 +117,7 @@ export default function History({ onReuse, onBack }) {
   const [previewItem, setPreviewItem] = useState(null)
   const [reusing, setReusing] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected' | 'all' }
+  const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected' | 'all' | 'one', ids?: string[] }
 
   const refresh = async () => {
     setLoading(true)
@@ -174,7 +174,7 @@ export default function History({ onReuse, onBack }) {
 
   const openDeleteSelected = () => {
     if (!someSelected) return
-    setConfirmDelete({ type: 'selected' })
+    setConfirmDelete({ type: 'selected', ids: [...selected] })
   }
 
   const openDeleteAll = () => {
@@ -182,16 +182,20 @@ export default function History({ onReuse, onBack }) {
     setConfirmDelete({ type: 'all' })
   }
 
+  const openDeleteOne = (id) => {
+    setConfirmDelete({ type: 'one', ids: [id] })
+  }
+
   const runConfirmedDelete = async () => {
     if (!confirmDelete) return
     setDeleting(true)
     try {
-      // Small delay so the loading animation is visible even on fast deletes
       const minDelay = new Promise((resolve) => setTimeout(resolve, 700))
       if (confirmDelete.type === 'all') {
         await Promise.all([clearHistory(), minDelay])
       } else {
-        await Promise.all([deleteHistoryItems([...selected]), minDelay])
+        const ids = confirmDelete.ids || [...selected]
+        await Promise.all([deleteHistoryItems(ids), minDelay])
       }
       setConfirmDelete(null)
       await refresh()
@@ -210,13 +214,31 @@ export default function History({ onReuse, onBack }) {
     }
   }
 
-  const selectedCount = selected.size
+  const selectedCount = confirmDelete?.type === 'one'
+    ? 1
+    : confirmDelete?.type === 'selected'
+      ? (confirmDelete.ids?.length || selected.size)
+      : selected.size
+
   const confirmTitle = confirmDelete?.type === 'all'
     ? 'Delete all history?'
-    : `Delete ${selectedCount} image${selectedCount === 1 ? '' : 's'}?`
+    : confirmDelete?.type === 'one'
+      ? 'Delete this image?'
+      : `Delete ${selectedCount} image${selectedCount === 1 ? '' : 's'}?`
+
   const confirmMessage = confirmDelete?.type === 'all'
     ? 'This will permanently remove every uploaded image from your history on this device. This cannot be undone.'
-    : `The selected image${selectedCount === 1 ? '' : 's'} will be permanently removed from history on this device. This cannot be undone.`
+    : confirmDelete?.type === 'one'
+      ? 'This image will be permanently removed from history on this device. This cannot be undone.'
+      : `The selected image${selectedCount === 1 ? '' : 's'} will be permanently removed from history on this device. This cannot be undone.`
+
+  const confirmLabel = confirmDelete?.type === 'all'
+    ? 'Delete all'
+    : 'Delete'
+
+  const removingIds = confirmDelete?.type === 'all'
+    ? null
+    : new Set(confirmDelete?.ids || [])
 
   return (
     <section className="history-section">
@@ -272,7 +294,7 @@ export default function History({ onReuse, onBack }) {
                 {group.items.map((item) => {
                   const isChecked = selected.has(item.id)
                   const isRemoving = deleting && (
-                    confirmDelete?.type === 'all' || selected.has(item.id)
+                    confirmDelete?.type === 'all' || removingIds?.has(item.id)
                   )
                   return (
                     <div
@@ -287,6 +309,18 @@ export default function History({ onReuse, onBack }) {
                           disabled={deleting}
                         />
                       </label>
+                      <button
+                        type="button"
+                        className="history-card-delete"
+                        title="Delete this image"
+                        disabled={deleting}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openDeleteOne(item.id)
+                        }}
+                      >
+                        <TrashIcon />
+                      </button>
                       <button
                         type="button"
                         className="history-card-btn"
@@ -326,7 +360,7 @@ export default function History({ onReuse, onBack }) {
         <ConfirmDeleteModal
           title={confirmTitle}
           message={confirmMessage}
-          confirmLabel={confirmDelete.type === 'all' ? 'Delete all' : 'Delete'}
+          confirmLabel={confirmLabel}
           onConfirm={runConfirmedDelete}
           onClose={() => !deleting && setConfirmDelete(null)}
           busy={deleting}

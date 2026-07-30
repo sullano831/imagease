@@ -947,6 +947,50 @@ body {
   cursor: pointer;
 }
 
+.history-card-delete {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-strong);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.15s, background 0.15s, color 0.15s, transform 0.15s;
+}
+
+.history-card:hover .history-card-delete,
+.history-card-delete:focus-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.history-card-delete:hover {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.3);
+  color: #dc2626;
+}
+
+.history-card-delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (hover: none) {
+  .history-card-delete {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .history-card-btn {
   display: block;
   width: 100%;

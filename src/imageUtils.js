@@ -74,9 +74,10 @@ function boxBlur(data, w, h, radius) {
 }
 
 /**
- * Enhances an image using:
- *  1. Unsharp Mask  — reduces pixelation, sharpens edges
- *  2. Subtle contrast boost — adds clarity and depth
+ * Enhances an image using a gentler pipeline:
+ *  1. Light denoise   — reduces grain before sharpening
+ *  2. Soft unsharp mask — cleans edges without crunchy halos
+ *  3. Subtle contrast  — adds mild depth without amplifying texture
  *
  * Pure canvas pixel manipulation — no external API needed.
  *
@@ -102,30 +103,46 @@ export function enhanceImage(dataURL, mimeType = 'image/webp') {
           const imageData = ctx.getImageData(0, 0, w, h)
           const src = imageData.data
 
-          const blurred = boxBlur(src, w, h, 2)
-          const amount = 1.1
-          const threshold = 4
+          // Step 1 — Light denoise (blend original with a mild blur)
+          const denoisedBlur = boxBlur(src, w, h, 1)
+          const denoiseMix = 0.22 // enough to cut grain, keep detail
+          const smoothed = new Float32Array(src.length)
+          for (let i = 0; i < src.length; i += 4) {
+            for (let c = 0; c < 3; c++) {
+              smoothed[i + c] = src[i + c] * (1 - denoiseMix) + denoisedBlur[i + c] * denoiseMix
+            }
+            smoothed[i + 3] = src[i + 3]
+          }
+
+          // Step 2 — Balanced unsharp mask (visible, not crunchy)
+          const edgeBlur = boxBlur(smoothed, w, h, 1)
+          const amount = 0.72
+          const threshold = 8
 
           const sharp = new Uint8ClampedArray(src.length)
           for (let i = 0; i < src.length; i += 4) {
             for (let c = 0; c < 3; c++) {
-              const diff = src[i + c] - blurred[i + c]
-              sharp[i + c] = Math.max(0, Math.min(255,
-                Math.abs(diff) >= threshold
-                  ? src[i + c] + amount * diff
-                  : src[i + c]
-              ))
+              const diff = smoothed[i + c] - edgeBlur[i + c]
+              const value = Math.abs(diff) >= threshold
+                ? smoothed[i + c] + amount * diff
+                : smoothed[i + c]
+              sharp[i + c] = Math.max(0, Math.min(255, value))
             }
             sharp[i + 3] = src[i + 3]
           }
 
-          const contrastFactor = 1.06
+          // Step 3 — Soft contrast + slight midtone clarity
+          const contrastFactor = 1.035
+          const midtoneLift = 2.5
           const result = new Uint8ClampedArray(sharp.length)
           for (let i = 0; i < sharp.length; i += 4) {
             for (let c = 0; c < 3; c++) {
-              result[i + c] = Math.max(0, Math.min(255,
-                (sharp[i + c] - 128) * contrastFactor + 128
-              ))
+              let value = (sharp[i + c] - 128) * contrastFactor + 128
+              // Gentle midtone lift for clearer faces without washing highlights
+              const t = value / 255
+              const mid = 4 * t * (1 - t) // peaks around midtones
+              value += midtoneLift * mid
+              result[i + c] = Math.max(0, Math.min(255, value))
             }
             result[i + 3] = sharp[i + 3]
           }
