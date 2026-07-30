@@ -423,7 +423,6 @@ export default function App() {
         {/* ── Upload screen ── */}
         {!sourceImage && (
           <section className="hero-section">
-            <span className="hero-eyebrow">Client-side · No uploads · Instant</span>
             <h1 className="hero-title">Resize, Crop &amp;<br /><span>Enhance Images</span></h1>
             <p className="hero-sub">Upload once. Get perfectly cropped versions for every slot — adjust crop position and enhance with one click.</p>
 
