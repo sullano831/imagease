@@ -80,6 +80,26 @@ function ReuseModal({ item, onReuse, onClose, reusing }) {
   )
 }
 
+function ConfirmDeleteModal({ title, message, confirmLabel = 'Delete', onConfirm, onClose, busy }) {
+  return (
+    <div className="modal-backdrop" onClick={() => !busy && onClose()}>
+      <div className="confirm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="confirm-modal-icon">
+          <TrashIcon />
+        </div>
+        <h2 className="confirm-modal-title">{title}</h2>
+        <p className="confirm-modal-message">{message}</p>
+        <div className="confirm-modal-actions">
+          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="btn btn-delete-confirm" onClick={onConfirm} disabled={busy}>
+            {busy ? 'Deleting…' : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function History({ onReuse, onBack }) {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
@@ -87,6 +107,7 @@ export default function History({ onReuse, onBack }) {
   const [previewItem, setPreviewItem] = useState(null)
   const [reusing, setReusing] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected' | 'all' }
 
   const refresh = async () => {
     setLoading(true)
@@ -107,17 +128,14 @@ export default function History({ onReuse, onBack }) {
   const grouped = useMemo(() => {
     const groups = []
     for (const item of items) {
-      const label = formatHistoryDate(item.uploadedAt).split(' · ')[0]
-      // Group by calendar day key
       const dayKey = new Date(item.uploadedAt).toDateString()
       let group = groups.find((g) => g.dayKey === dayKey)
       if (!group) {
-        group = { dayKey, label, items: [] }
+        group = { dayKey, items: [] }
         groups.push(group)
       }
       group.items.push(item)
     }
-    // nicer labels
     return groups.map((g) => {
       const d = new Date(g.dayKey)
       const today = new Date()
@@ -144,25 +162,26 @@ export default function History({ onReuse, onBack }) {
     else setSelected(new Set(items.map((i) => i.id)))
   }
 
-  const handleDeleteSelected = async () => {
+  const openDeleteSelected = () => {
     if (!someSelected) return
-    const count = selected.size
-    if (!window.confirm(`Delete ${count} image${count > 1 ? 's' : ''} from history?`)) return
-    setDeleting(true)
-    try {
-      await deleteHistoryItems([...selected])
-      await refresh()
-    } finally {
-      setDeleting(false)
-    }
+    setConfirmDelete({ type: 'selected' })
   }
 
-  const handleDeleteAll = async () => {
+  const openDeleteAll = () => {
     if (!items.length) return
-    if (!window.confirm('Delete all history? This cannot be undone.')) return
+    setConfirmDelete({ type: 'all' })
+  }
+
+  const runConfirmedDelete = async () => {
+    if (!confirmDelete) return
     setDeleting(true)
     try {
-      await clearHistory()
+      if (confirmDelete.type === 'all') {
+        await clearHistory()
+      } else {
+        await deleteHistoryItems([...selected])
+      }
+      setConfirmDelete(null)
       await refresh()
     } finally {
       setDeleting(false)
@@ -178,6 +197,14 @@ export default function History({ onReuse, onBack }) {
       setPreviewItem(null)
     }
   }
+
+  const selectedCount = selected.size
+  const confirmTitle = confirmDelete?.type === 'all'
+    ? 'Delete all history?'
+    : `Delete ${selectedCount} image${selectedCount === 1 ? '' : 's'}?`
+  const confirmMessage = confirmDelete?.type === 'all'
+    ? 'This will permanently remove every uploaded image from your history on this device. This cannot be undone.'
+    : `The selected image${selectedCount === 1 ? '' : 's'} will be permanently removed from history on this device. This cannot be undone.`
 
   return (
     <section className="history-section">
@@ -200,14 +227,14 @@ export default function History({ onReuse, onBack }) {
             <button
               className="btn btn-ghost btn-sm"
               disabled={!someSelected || deleting}
-              onClick={handleDeleteSelected}
+              onClick={openDeleteSelected}
             >
               <TrashIcon /> Delete selected ({selected.size})
             </button>
             <button
               className="btn btn-ghost btn-sm btn-danger"
               disabled={deleting}
-              onClick={handleDeleteAll}
+              onClick={openDeleteAll}
             >
               Delete all
             </button>
@@ -270,6 +297,17 @@ export default function History({ onReuse, onBack }) {
           onReuse={handleReuse}
           onClose={() => !reusing && setPreviewItem(null)}
           reusing={reusing}
+        />
+      )}
+
+      {confirmDelete && (
+        <ConfirmDeleteModal
+          title={confirmTitle}
+          message={confirmMessage}
+          confirmLabel={confirmDelete.type === 'all' ? 'Delete all' : 'Delete'}
+          onConfirm={runConfirmedDelete}
+          onClose={() => !deleting && setConfirmDelete(null)}
+          busy={deleting}
         />
       )}
     </section>
