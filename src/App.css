@@ -1078,6 +1078,7 @@ body {
 .confirm-modal {
   width: 100%;
   max-width: 400px;
+  min-height: 220px;
   background: var(--glass-strong);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-xl);
@@ -1085,10 +1086,17 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   text-align: center;
   gap: 0.55rem;
   box-shadow: var(--shadow-lg), var(--inner-shine);
   animation: modalIn 0.25s cubic-bezier(.34,1.56,.64,1);
+  position: relative;
+  overflow: hidden;
+}
+
+.confirm-modal.is-busy {
+  min-height: 240px;
 }
 
 .confirm-modal-icon {
@@ -1148,6 +1156,58 @@ body {
   opacity: 0.7;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Delete loading state inside modal */
+.confirm-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.75rem 0;
+  animation: fadeIn 0.2s ease;
+}
+
+.confirm-loading-ring {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 3px solid rgba(220, 38, 38, 0.15);
+  border-top-color: #dc2626;
+  animation: spin 0.75s linear infinite;
+  margin-bottom: 0.35rem;
+}
+
+.confirm-loading-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.confirm-loading-sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+}
+
+.history-toolbar.is-disabled {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.history-content.is-deleting {
+  pointer-events: none;
+}
+
+.history-card.is-removing {
+  animation: cardFadeOut 0.65s ease forwards;
+}
+
+@keyframes cardFadeOut {
+  0% { opacity: 1; transform: scale(1); }
+  60% { opacity: 0.35; transform: scale(0.96); filter: grayscale(0.4); }
+  100% { opacity: 0.2; transform: scale(0.94); filter: grayscale(0.7); }
 }
 
 /* ── Responsive ──────────────────────────────────────────────── */

@@ -83,18 +83,28 @@ function ReuseModal({ item, onReuse, onClose, reusing }) {
 function ConfirmDeleteModal({ title, message, confirmLabel = 'Delete', onConfirm, onClose, busy }) {
   return (
     <div className="modal-backdrop" onClick={() => !busy && onClose()}>
-      <div className="confirm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="confirm-modal-icon">
-          <TrashIcon />
-        </div>
-        <h2 className="confirm-modal-title">{title}</h2>
-        <p className="confirm-modal-message">{message}</p>
-        <div className="confirm-modal-actions">
-          <button className="btn btn-ghost" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-delete-confirm" onClick={onConfirm} disabled={busy}>
-            {busy ? 'Deleting…' : confirmLabel}
-          </button>
-        </div>
+      <div className={`confirm-modal ${busy ? 'is-busy' : ''}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        {busy ? (
+          <div className="confirm-loading">
+            <div className="confirm-loading-ring" />
+            <p className="confirm-loading-title">Deleting…</p>
+            <p className="confirm-loading-sub">Please wait a moment</p>
+          </div>
+        ) : (
+          <>
+            <div className="confirm-modal-icon">
+              <TrashIcon />
+            </div>
+            <h2 className="confirm-modal-title">{title}</h2>
+            <p className="confirm-modal-message">{message}</p>
+            <div className="confirm-modal-actions">
+              <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+              <button className="btn btn-delete-confirm" onClick={onConfirm}>
+                {confirmLabel}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -176,10 +186,12 @@ export default function History({ onReuse, onBack }) {
     if (!confirmDelete) return
     setDeleting(true)
     try {
+      // Small delay so the loading animation is visible even on fast deletes
+      const minDelay = new Promise((resolve) => setTimeout(resolve, 700))
       if (confirmDelete.type === 'all') {
-        await clearHistory()
+        await Promise.all([clearHistory(), minDelay])
       } else {
-        await deleteHistoryItems([...selected])
+        await Promise.all([deleteHistoryItems([...selected]), minDelay])
       }
       setConfirmDelete(null)
       await refresh()
@@ -217,9 +229,9 @@ export default function History({ onReuse, onBack }) {
       </div>
 
       {items.length > 0 && (
-        <div className="history-toolbar">
+        <div className={`history-toolbar ${deleting ? 'is-disabled' : ''}`}>
           <label className="history-check-all">
-            <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+            <input type="checkbox" checked={allSelected} onChange={toggleAll} disabled={deleting} />
             <span>{allSelected ? 'Unselect all' : 'Select all'}</span>
           </label>
 
@@ -242,6 +254,7 @@ export default function History({ onReuse, onBack }) {
         </div>
       )}
 
+      <div className={`history-content ${deleting ? 'is-deleting' : ''}`}>
       {loading ? (
         <div className="processing-state"><div className="spinner" /><p>Loading history…</p></div>
       ) : items.length === 0 ? (
@@ -258,19 +271,27 @@ export default function History({ onReuse, onBack }) {
               <div className="history-grid">
                 {group.items.map((item) => {
                   const isChecked = selected.has(item.id)
+                  const isRemoving = deleting && (
+                    confirmDelete?.type === 'all' || selected.has(item.id)
+                  )
                   return (
-                    <div key={item.id} className={`history-card ${isChecked ? 'selected' : ''}`}>
+                    <div
+                      key={item.id}
+                      className={`history-card ${isChecked ? 'selected' : ''} ${isRemoving ? 'is-removing' : ''}`}
+                    >
                       <label className="history-card-check" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => toggleOne(item.id)}
+                          disabled={deleting}
                         />
                       </label>
                       <button
                         type="button"
                         className="history-card-btn"
-                        onClick={() => setPreviewItem(item)}
+                        onClick={() => !deleting && setPreviewItem(item)}
+                        disabled={deleting}
                       >
                         <HistoryThumb item={item} />
                         <div className="history-card-info">
@@ -290,6 +311,7 @@ export default function History({ onReuse, onBack }) {
           ))}
         </div>
       )}
+      </div>
 
       {previewItem && (
         <ReuseModal
