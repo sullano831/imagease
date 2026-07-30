@@ -1,10 +1,10 @@
 @echo off
-title ImageSizer - Local Dev Server
+title ImagEasier - Local Dev Server
 cd /d "%~dp0"
 
 echo.
 echo  ================================================
-echo    ImageSizer - Image Resizer Tool
+echo    ImagEasier - Image Resizer Tool
 echo  ================================================
 echo.
 

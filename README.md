@@ -1,4 +1,4 @@
-# ImageSizer
+# ImagEasier
 
 A React + Vite web app that lets you upload an image and automatically generates cropped/resized versions for predefined slots — all client-side, nothing uploaded to any server.
 

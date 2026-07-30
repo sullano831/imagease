@@ -408,7 +408,7 @@ export default function App() {
               <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
-            ImageSizer <span className="logo-dot" />
+            ImagEasier <span className="logo-dot" />
           </div>
           <button className="theme-toggle" onClick={() => setDarkMode(d => !d)} aria-label="Toggle theme">
             <span className={`icon-wrap ${darkMode ? 'rotate' : ''}`}>
