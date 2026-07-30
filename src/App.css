@@ -733,10 +733,22 @@ body {
 /* ── Footer ──────────────────────────────────────────────────── */
 .app-footer {
   position: relative; z-index: 1;
-  text-align: center; padding: 1.1rem;
-  color: var(--text-tertiary); font-size: 0.78rem;
+  display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
+  text-align: center; padding: 1.35rem 1.1rem;
   border-top: 1px solid var(--glass-border-soft);
   background: var(--glass); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.footer-brand {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-secondary);
+}
+.footer-credit {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-tertiary);
+  letter-spacing: 0.01em;
 }
 
 /* ── Responsive ──────────────────────────────────────────────── */

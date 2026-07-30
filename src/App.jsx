@@ -588,7 +588,8 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        All processing happens in your browser — your images never leave your device.
+        <span className="footer-brand">ImagEase</span>
+        <span className="footer-credit">Made by Angelica Sullano</span>
       </footer>
     </div>
   )
