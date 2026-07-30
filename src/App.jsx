@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import JSZip from 'jszip'
 import { cropCoverWithOffset, loadImage, downloadDataURL, dataURLtoBlob, enhanceImage, MIME_MAP, EXT_MAP } from './imageUtils'
+import { saveToHistory, listHistory } from './historyStore'
+import History from './History'
 import './App.css'
 
 const PRESET_SIZES = [
@@ -77,6 +79,15 @@ function CropIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
       <polyline points="6 2 6 8 2 8"/><polyline points="18 22 18 16 22 16"/>
       <rect x="6" y="8" width="12" height="8" rx="1"/>
+    </svg>
+  )
+}
+
+function HistoryIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15 14" />
     </svg>
   )
 }
@@ -292,9 +303,22 @@ export default function App() {
   const [processing, setProcessing] = useState(false)
   const [enhancingAll, setEnhancingAll] = useState(false)
   const [showCustom, setShowCustom] = useState(false)
+  const [view, setView] = useState('home') // 'home' | 'history'
+  const [historyCount, setHistoryCount] = useState(0)
   const fileInputRef = useRef(null)
 
   const mime = MIME_MAP[format]
+
+  const refreshHistoryCount = useCallback(async () => {
+    try {
+      const list = await listHistory()
+      setHistoryCount(list.length)
+    } catch {
+      setHistoryCount(0)
+    }
+  }, [])
+
+  useEffect(() => { refreshHistoryCount() }, [refreshHistoryCount])
 
   const buildSizes = useCallback((customs) => {
     const valid = customs.filter(s => s.width && s.height)
@@ -318,15 +342,37 @@ export default function App() {
       enhancedURL: null,
     })), [])
 
-  const handleFile = useCallback(async (file) => {
-    if (!file || !file.type.startsWith('image/')) return
+  const startWithFile = useCallback(async (file, { saveHistory = true } = {}) => {
+    if (!file || !file.type?.startsWith('image/')) return
     setProcessing(true)
-    const img = await loadImage(file)
-    const src = URL.createObjectURL(file)
-    setSourceImage({ file, img, src })
-    setResults(runProcess(img, buildSizes(customSizes), MIME_MAP[format]))
-    setProcessing(false)
-  }, [customSizes, format, buildSizes, runProcess])
+    setView('home')
+    try {
+      const img = await loadImage(file)
+      const src = URL.createObjectURL(file)
+      setSourceImage({ file, img, src })
+      setResults(runProcess(img, buildSizes(customSizes), MIME_MAP[format]))
+      if (saveHistory) {
+        try {
+          await saveToHistory(file)
+          await refreshHistoryCount()
+        } catch (err) {
+          console.warn('Could not save to history:', err)
+        }
+      }
+    } finally {
+      setProcessing(false)
+    }
+  }, [customSizes, format, buildSizes, runProcess, refreshHistoryCount])
+
+  const handleFile = useCallback(async (file) => {
+    await startWithFile(file, { saveHistory: true })
+  }, [startWithFile])
+
+  const handleReuseHistory = useCallback(async (item) => {
+    if (!item?.blob) return
+    const file = new File([item.blob], item.name || 'history-image', { type: item.type || 'image/jpeg' })
+    await startWithFile(file, { saveHistory: false })
+  }, [startWithFile])
 
   const onFileChange = (e) => { handleFile(e.target.files?.[0]); e.target.value = '' }
   const onDrop = (e) => { e.preventDefault(); setIsDragging(false); handleFile(e.dataTransfer.files?.[0]) }
@@ -402,24 +448,47 @@ export default function App() {
       {/* Header */}
       <header className="app-header">
         <div className="header-inner">
-          <div className="logo">
+          <button
+            type="button"
+            className="logo"
+            onClick={() => { setView('home'); refreshHistoryCount() }}
+            title="Home"
+          >
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="4"/>
               <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
             ImagEase <span className="logo-dot" />
-          </div>
-          <button className="theme-toggle" onClick={() => setDarkMode(d => !d)} aria-label="Toggle theme">
-            <span className={`icon-wrap ${darkMode ? 'rotate' : ''}`}>
-              {darkMode ? <SunIcon /> : <MoonIcon />}
-            </span>
           </button>
+          <div className="header-actions">
+            <button
+              className={`btn btn-ghost btn-sm history-nav-btn ${view === 'history' ? 'active' : ''}`}
+              onClick={() => setView(view === 'history' ? 'home' : 'history')}
+              title="Upload history"
+            >
+              <HistoryIcon />
+              History
+              {historyCount > 0 && <span className="history-count">{historyCount}</span>}
+            </button>
+            <button className="theme-toggle" onClick={() => setDarkMode(d => !d)} aria-label="Toggle theme">
+              <span className={`icon-wrap ${darkMode ? 'rotate' : ''}`}>
+                {darkMode ? <SunIcon /> : <MoonIcon />}
+              </span>
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="main">
 
+        {view === 'history' ? (
+          <History
+            onBack={() => { setView('home'); refreshHistoryCount() }}
+            onReuse={handleReuseHistory}
+          />
+        ) : (
+          <>
         {/* ── Upload screen ── */}
         {!sourceImage && (
           <section className="hero-section">
@@ -584,6 +653,8 @@ export default function App() {
               </div>
             )}
           </section>
+        )}
+          </>
         )}
       </main>
 
