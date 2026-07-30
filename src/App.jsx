@@ -423,50 +423,66 @@ export default function App() {
         {/* ── Upload screen ── */}
         {!sourceImage && (
           <section className="hero-section">
-            <h1 className="hero-title">Resize, Crop &amp;<br /><span>Enhance Images</span></h1>
-            <p className="hero-sub">Upload once. Get perfectly cropped versions for every slot — adjust crop position and enhance with one click.</p>
-
-            <div
-              className={`upload-zone ${isDragging ? 'dragging' : ''}`}
-              onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={onDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp"
-                style={{ display: 'none' }} onChange={onFileChange} />
-              <div className="upload-icon-wrap"><UploadIcon /></div>
-              <p className="upload-label">Drop your image or <span className="upload-link">browse</span></p>
-              <p className="upload-hint">JPG · PNG · WEBP</p>
+            <div className="hero-copy">
+              <h1 className="hero-title">Resize, Crop &amp;<br /><span>Enhance Images</span></h1>
+              <p className="hero-sub">Upload once. Get perfectly cropped versions for every slot — adjust crop position and enhance with one click.</p>
             </div>
 
-            <div className="presets-grid-hero">
-              {PRESET_SIZES.map(s => (
-                <div key={s.name} className="preset-chip">
-                  <span className="preset-chip-name">{s.name}</span>
-                  <span className="preset-chip-dim">{s.width}×{s.height}</span>
+            <div className="hero-panel">
+              <div
+                className={`upload-zone ${isDragging ? 'dragging' : ''}`}
+                onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={onDrop}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp"
+                  style={{ display: 'none' }} onChange={onFileChange} />
+                <div className="upload-icon-wrap"><UploadIcon /></div>
+                <div className="upload-copy">
+                  <p className="upload-label">Drop your image or <span className="upload-link">browse</span></p>
+                  <p className="upload-hint">JPG · PNG · WEBP</p>
                 </div>
-              ))}
-            </div>
+              </div>
 
-            <div className="customize-section">
-              <button className={`btn btn-ghost btn-sm ${showCustom ? 'active' : ''}`} onClick={() => setShowCustom(v => !v)}>
-                {showCustom ? '▾' : '▸'}&nbsp; Customize Sizes
-              </button>
-              {showCustom && (
-                <div className="custom-sizes-box">
-                  {customSizes.map(s => (
-                    <div key={s.id} className="custom-row">
-                      <input className="input-field" placeholder="Label (optional)" value={s.name} onChange={e => updateCustomSize(s.id, 'name', e.target.value)} />
-                      <input className="input-field input-num" placeholder="W" type="number" min="1" value={s.width} onChange={e => updateCustomSize(s.id, 'width', e.target.value)} />
-                      <span className="dim-sep">×</span>
-                      <input className="input-field input-num" placeholder="H" type="number" min="1" value={s.height} onChange={e => updateCustomSize(s.id, 'height', e.target.value)} />
-                      {customSizes.length > 1 && <button className="btn-remove" onClick={() => removeCustomSize(s.id)}>✕</button>}
+              <div className="presets-panel">
+                <div className="presets-panel-header">
+                  <span className="presets-panel-title">Output sizes</span>
+                  <span className="presets-panel-count">{PRESET_SIZES.length} presets</span>
+                </div>
+                <div className="presets-list">
+                  {PRESET_SIZES.map(s => (
+                    <div key={s.name} className="preset-row">
+                      <span className="preset-row-name">{s.name}</span>
+                      <span className="preset-row-dim">{s.width} × {s.height}</span>
                     </div>
                   ))}
-                  <button className="btn btn-ghost btn-sm" onClick={addCustomSize}>+ Add another size</button>
                 </div>
-              )}
+
+                <div className="presets-panel-footer">
+                  <button
+                    className={`btn btn-ghost btn-sm customize-toggle ${showCustom ? 'active' : ''}`}
+                    onClick={() => setShowCustom(v => !v)}
+                  >
+                    {showCustom ? '▾ Hide custom sizes' : '▸ Customize sizes'}
+                  </button>
+                </div>
+
+                {showCustom && (
+                  <div className="custom-sizes-box">
+                    {customSizes.map(s => (
+                      <div key={s.id} className="custom-row">
+                        <input className="input-field" placeholder="Label (optional)" value={s.name} onChange={e => updateCustomSize(s.id, 'name', e.target.value)} />
+                        <input className="input-field input-num" placeholder="W" type="number" min="1" value={s.width} onChange={e => updateCustomSize(s.id, 'width', e.target.value)} />
+                        <span className="dim-sep">×</span>
+                        <input className="input-field input-num" placeholder="H" type="number" min="1" value={s.height} onChange={e => updateCustomSize(s.id, 'height', e.target.value)} />
+                        {customSizes.length > 1 && <button className="btn-remove" onClick={() => removeCustomSize(s.id)}>✕</button>}
+                      </div>
+                    ))}
+                    <button className="btn btn-ghost btn-sm" onClick={addCustomSize}>+ Add another size</button>
+                  </div>
+                )}
+              </div>
             </div>
           </section>
         )}
