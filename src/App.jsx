@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import JSZip from 'jszip'
 import { cropCoverWithOffset, loadImage, downloadDataURL, dataURLtoBlob, enhanceImage, MIME_MAP, EXT_MAP } from './imageUtils'
 import { saveToHistory, listHistory } from './historyStore'
+import { searchLocations, geotagImage, geotaggedFilename } from './geotag'
 import History from './History'
 import './App.css'
 
@@ -79,6 +80,15 @@ function CropIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
       <polyline points="6 2 6 8 2 8"/><polyline points="18 22 18 16 22 16"/>
       <rect x="6" y="8" width="12" height="8" rx="1"/>
+    </svg>
+  )
+}
+
+function PinIcon({ size = 13 }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width={size} height={size}>
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
     </svg>
   )
 }
@@ -183,11 +193,12 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
 
 // ── Image Card ───────────────────────────────────────────────────
 
-function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, onCropApplied }) {
+function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, onCropApplied, geoLocation, onGeotagDownload }) {
   const [enhancing, setEnhancing] = useState(false)
   const [showEnhanced, setShowEnhanced] = useState(Boolean(result.enhancedURL))
   const [showOriginal, setShowOriginal] = useState(false)
   const [showCropEditor, setShowCropEditor] = useState(false)
+  const [geoBusy, setGeoBusy] = useState(false)
 
   // Keep in sync when Enhance All (or crop reset) updates parent state
   useEffect(() => {
@@ -218,6 +229,16 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
     onCropApplied(result.name, newDataURL, newOffset)
     setShowEnhanced(false)
     setShowCropEditor(false)
+  }
+
+  const handleGeotagDownload = async () => {
+    if (!geoLocation || !onGeotagDownload) return
+    setGeoBusy(true)
+    try {
+      await onGeotagDownload(activeURL, result.name)
+    } finally {
+      setGeoBusy(false)
+    }
   }
 
   return (
@@ -271,6 +292,16 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
             <button className="btn btn-ghost btn-sm btn-icon" onClick={() => downloadDataURL(activeURL, filename)} title="Download">
               <DownloadIcon />
             </button>
+            {geoLocation && (
+              <button
+                className="btn btn-geo btn-sm"
+                onClick={handleGeotagDownload}
+                disabled={geoBusy}
+                title={`Download geotagged ${format.toUpperCase()}`}
+              >
+                {geoBusy ? <><span className="mini-spinner" />…</> : <><PinIcon /> Geo</>}
+              </button>
+            )}
           </div>
         </>
       )}
@@ -305,7 +336,15 @@ export default function App() {
   const [showCustom, setShowCustom] = useState(false)
   const [view, setView] = useState('home') // 'home' | 'history'
   const [historyCount, setHistoryCount] = useState(0)
+  const [geoQuery, setGeoQuery] = useState('')
+  const [geoResults, setGeoResults] = useState([])
+  const [geoSelected, setGeoSelected] = useState(null)
+  const [geoSearching, setGeoSearching] = useState(false)
+  const [geoError, setGeoError] = useState('')
+  const [geoZipBusy, setGeoZipBusy] = useState(false)
+  const [showGeotag, setShowGeotag] = useState(false)
   const fileInputRef = useRef(null)
+  const geoSearchTimer = useRef(null)
 
   const mime = MIME_MAP[format]
 
@@ -436,10 +475,86 @@ export default function App() {
     URL.revokeObjectURL(url)
   }
 
+  const runGeoSearch = useCallback(async (query) => {
+    const q = query.trim()
+    if (q.length < 3) {
+      setGeoResults([])
+      setGeoError('')
+      return
+    }
+    setGeoSearching(true)
+    setGeoError('')
+    try {
+      const results = await searchLocations(q)
+      setGeoResults(results)
+      if (!results.length) setGeoError('No places found. Try a more specific address.')
+    } catch (err) {
+      setGeoResults([])
+      setGeoError(err.message || 'Search failed. Please try again.')
+    } finally {
+      setGeoSearching(false)
+    }
+  }, [])
+
+  const onGeoQueryChange = (value) => {
+    setGeoQuery(value)
+    setGeoSelected(null)
+    if (geoSearchTimer.current) clearTimeout(geoSearchTimer.current)
+    geoSearchTimer.current = setTimeout(() => runGeoSearch(value), 550)
+  }
+
+  const handleGeotagDownload = useCallback(async (dataURL, baseName) => {
+    if (!geoSelected) return
+    const tagged = await geotagImage(dataURL, {
+      lat: geoSelected.lat,
+      lng: geoSelected.lng,
+      label: geoSelected.label,
+      format,
+    })
+    downloadDataURL(tagged, geotaggedFilename(baseName, format))
+  }, [geoSelected, format])
+
+  const downloadAllGeotagged = async () => {
+    if (!results.length || !geoSelected) return
+    setGeoZipBusy(true)
+    try {
+      const zip = new JSZip()
+      for (const r of results) {
+        const source = r.enhancedURL || r.dataURL
+        const tagged = await geotagImage(source, {
+          lat: geoSelected.lat,
+          lng: geoSelected.lng,
+          label: geoSelected.label,
+          format,
+        })
+        zip.file(geotaggedFilename(r.name, format), dataURLtoBlob(tagged))
+      }
+      const content = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(content)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'images-geotagged.zip'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setGeoError(err.message || 'Geotagged download failed.')
+    } finally {
+      setGeoZipBusy(false)
+    }
+  }
+
   const addCustomSize = () => setCustomSizes(p => [...p, { id: Date.now(), name: '', width: '', height: '' }])
   const removeCustomSize = (id) => setCustomSizes(p => p.filter(s => s.id !== id))
   const updateCustomSize = (id, field, value) => setCustomSizes(p => p.map(s => s.id === id ? { ...s, [field]: value } : s))
-  const resetApp = () => { setSourceImage(null); setResults([]) }
+  const resetApp = () => {
+    setSourceImage(null)
+    setResults([])
+    setGeoSelected(null)
+    setGeoResults([])
+    setGeoQuery('')
+    setGeoError('')
+    setShowGeotag(false)
+  }
 
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
@@ -541,11 +656,36 @@ export default function App() {
                   <div className="custom-sizes-box">
                     {customSizes.map(s => (
                       <div key={s.id} className="custom-row">
-                        <input className="input-field" placeholder="Label (optional)" value={s.name} onChange={e => updateCustomSize(s.id, 'name', e.target.value)} />
-                        <input className="input-field input-num" placeholder="W" type="number" min="1" value={s.width} onChange={e => updateCustomSize(s.id, 'width', e.target.value)} />
-                        <span className="dim-sep">×</span>
-                        <input className="input-field input-num" placeholder="H" type="number" min="1" value={s.height} onChange={e => updateCustomSize(s.id, 'height', e.target.value)} />
-                        {customSizes.length > 1 && <button className="btn-remove" onClick={() => removeCustomSize(s.id)}>✕</button>}
+                        <input
+                          className="input-field custom-label"
+                          placeholder="Label (optional)"
+                          value={s.name}
+                          onChange={e => updateCustomSize(s.id, 'name', e.target.value)}
+                        />
+                        <div className="custom-dims">
+                          <input
+                            className="input-field input-num"
+                            placeholder="W"
+                            type="number"
+                            min="1"
+                            value={s.width}
+                            onChange={e => updateCustomSize(s.id, 'width', e.target.value)}
+                          />
+                          <span className="dim-sep">×</span>
+                          <input
+                            className="input-field input-num"
+                            placeholder="H"
+                            type="number"
+                            min="1"
+                            value={s.height}
+                            onChange={e => updateCustomSize(s.id, 'height', e.target.value)}
+                          />
+                        </div>
+                        {customSizes.length > 1 ? (
+                          <button className="btn-remove" onClick={() => removeCustomSize(s.id)} aria-label="Remove size">✕</button>
+                        ) : (
+                          <span className="btn-remove-spacer" aria-hidden="true" />
+                        )}
                       </div>
                     ))}
                     <button className="btn btn-ghost btn-sm" onClick={addCustomSize}>+ Add another size</button>
@@ -605,23 +745,160 @@ export default function App() {
                     <DownloadIcon /> Download All (ZIP)
                   </button>
                 )}
+                {results.length > 0 && geoSelected && (
+                  <button className="btn btn-geo" onClick={downloadAllGeotagged} disabled={geoZipBusy}>
+                    {geoZipBusy
+                      ? <><span className="mini-spinner" /> Geotagging…</>
+                      : <><PinIcon size={14} /> Download All Geotagged</>}
+                  </button>
+                )}
               </div>
             </div>
 
-            {/* Custom sizes */}
+            {/* Geotag + Custom sizes toggles */}
+            <div className="side-toggles">
+            {results.length > 0 && (
+              <div className="geotag-panel">
+                <button
+                  className={`btn btn-ghost btn-sm geotag-toggle side-toggle ${showGeotag ? 'active' : ''}`}
+                  onClick={() => setShowGeotag(v => !v)}
+                >
+                  <PinIcon /> Geotag
+                </button>
+
+                {showGeotag && (
+                  <div className="geotag-box">
+                    <p className="geotag-help">
+                      Optional. Location search uses a free service, so not every place may appear.
+                    </p>
+                    <div className="geotag-search-row">
+                      <input
+                        className="input-field geotag-input"
+                        placeholder="Paste address or place name…"
+                        value={geoQuery}
+                        onChange={(e) => onGeoQueryChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            if (geoSearchTimer.current) clearTimeout(geoSearchTimer.current)
+                            runGeoSearch(geoQuery)
+                          }
+                        }}
+                      />
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => runGeoSearch(geoQuery)}
+                        disabled={geoSearching || geoQuery.trim().length < 3}
+                      >
+                        {geoSearching ? 'Searching…' : 'Search'}
+                      </button>
+                    </div>
+
+                    {geoError && <p className="geotag-error">{geoError}</p>}
+
+                    {geoResults.length > 0 && !geoSelected && (
+                      <div className="geotag-results">
+                        {geoResults.map((place) => (
+                          <button
+                            key={place.id}
+                            type="button"
+                            className="geotag-result"
+                            onClick={() => {
+                              setGeoSelected(place)
+                              setGeoQuery(place.label)
+                              setGeoResults([])
+                              setGeoError('')
+                            }}
+                          >
+                            <PinIcon size={14} />
+                            <span className="geotag-result-text">
+                              <span className="geotag-result-title">{place.title || place.label}</span>
+                              {place.detail && (
+                                <span className="geotag-result-detail">{place.detail}</span>
+                              )}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {geoSelected && (
+                      <div className="geotag-selected">
+                        <div className="geotag-selected-info">
+                          <PinIcon size={14} />
+                          <div>
+                            <div className="geotag-selected-label">Selected location</div>
+                            <div className="geotag-selected-place">
+                              {geoSelected.title || geoSelected.label}
+                            </div>
+                            {(geoSelected.detail || geoSelected.label) && (
+                              <div className="geotag-selected-detail">
+                                {geoSelected.detail || geoSelected.label}
+                              </div>
+                            )}
+                            <div className="geotag-selected-coords">
+                              {geoSelected.lat.toFixed(5)}, {geoSelected.lng.toFixed(5)}
+                              {geoSelected.postcode ? ` · ${geoSelected.postcode}` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => {
+                            setGeoSelected(null)
+                            setGeoResults([])
+                          }}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="customize-section">
-              <button className={`btn btn-ghost btn-sm ${showCustom ? 'active' : ''}`} onClick={() => setShowCustom(v => !v)}>
+              <button
+                className={`btn btn-ghost btn-sm side-toggle ${showCustom ? 'active' : ''}`}
+                onClick={() => setShowCustom(v => !v)}
+              >
                 {showCustom ? '▾' : '▸'}&nbsp; Custom Sizes
               </button>
               {showCustom && (
                 <div className="custom-sizes-box">
                   {customSizes.map(s => (
                     <div key={s.id} className="custom-row">
-                      <input className="input-field" placeholder="Label (optional)" value={s.name} onChange={e => updateCustomSize(s.id, 'name', e.target.value)} />
-                      <input className="input-field input-num" placeholder="W" type="number" min="1" value={s.width} onChange={e => updateCustomSize(s.id, 'width', e.target.value)} />
-                      <span className="dim-sep">×</span>
-                      <input className="input-field input-num" placeholder="H" type="number" min="1" value={s.height} onChange={e => updateCustomSize(s.id, 'height', e.target.value)} />
-                      {customSizes.length > 1 && <button className="btn-remove" onClick={() => removeCustomSize(s.id)}>✕</button>}
+                      <input
+                        className="input-field custom-label"
+                        placeholder="Label (optional)"
+                        value={s.name}
+                        onChange={e => updateCustomSize(s.id, 'name', e.target.value)}
+                      />
+                      <div className="custom-dims">
+                        <input
+                          className="input-field input-num"
+                          placeholder="W"
+                          type="number"
+                          min="1"
+                          value={s.width}
+                          onChange={e => updateCustomSize(s.id, 'width', e.target.value)}
+                        />
+                        <span className="dim-sep">×</span>
+                        <input
+                          className="input-field input-num"
+                          placeholder="H"
+                          type="number"
+                          min="1"
+                          value={s.height}
+                          onChange={e => updateCustomSize(s.id, 'height', e.target.value)}
+                        />
+                      </div>
+                      {customSizes.length > 1 ? (
+                        <button className="btn-remove" onClick={() => removeCustomSize(s.id)} aria-label="Remove size">✕</button>
+                      ) : (
+                        <span className="btn-remove-spacer" aria-hidden="true" />
+                      )}
                     </div>
                   ))}
                   <div className="custom-actions">
@@ -630,6 +907,7 @@ export default function App() {
                   </div>
                 </div>
               )}
+            </div>
             </div>
 
             <div className="section-divider" />
@@ -648,6 +926,8 @@ export default function App() {
                     sourceImgSrc={sourceImage?.src}
                     onEnhanced={handleEnhanced}
                     onCropApplied={handleCropApplied}
+                    geoLocation={geoSelected}
+                    onGeotagDownload={handleGeotagDownload}
                   />
                 ))}
               </div>
