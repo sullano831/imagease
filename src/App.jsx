@@ -425,7 +425,7 @@ export default function App() {
           <section className="hero-section">
             <div className="hero-copy">
               <h1 className="hero-title">Resize, Crop &amp;<br /><span>Enhance Images</span></h1>
-              <p className="hero-sub">Upload once. Get perfectly cropped versions for every slot — adjust crop position and enhance with one click.</p>
+              <p className="hero-sub">Made with care, just for you — drop in one photo, and we’ll gently shape every size you need.</p>
             </div>
 
             <div className="hero-panel">
