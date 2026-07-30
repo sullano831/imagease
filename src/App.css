@@ -599,8 +599,11 @@ body {
 
 /* ── Card actions row ────────────────────────────────────────── */
 .card-actions {
-  display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
   width: 100%;
+  align-items: stretch;
 }
 
 /* ── Controls right group ────────────────────────────────────── */
@@ -745,10 +748,116 @@ body {
 
 /* ── Card actions ────────────────────────────────────────────── */
 .card-actions {
-  display: flex; gap: 0.35rem; align-items: center;
-  flex-wrap: wrap; justify-content: center; width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  width: 100%;
+  align-items: stretch;
 }
+
+.card-actions > .btn,
+.card-action-group {
+  min-height: 2.2rem;
+  width: 100%;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.card-action-group {
+  display: flex;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.card-action-group .btn-enhance {
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+}
+
+.card-actions .btn-sm {
+  padding: 0.42rem 0.55rem;
+  font-size: 0.78rem;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.card-actions .btn-download:only-of-type,
+.card-actions:not(:has(.btn-geo)) .btn-download {
+  grid-column: 1 / -1;
+}
+
+.btn-reset {
+  flex: 0 0 2.2rem;
+  width: 2.2rem;
+  padding: 0 !important;
+  justify-content: center;
+}
+
 .btn-icon { padding: 0.38rem 0.55rem; }
+
+/* Soften card action colors so the row feels unified */
+.card-actions .btn-crop {
+  background: var(--glass-strong);
+  border-color: var(--glass-border-soft);
+  color: var(--text-secondary);
+}
+.card-actions .btn-crop:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.card-actions .btn-enhance {
+  background: rgba(124, 58, 237, 0.12);
+  border-color: rgba(124, 58, 237, 0.28);
+  color: #6d28d9;
+  box-shadow: none;
+}
+.card-actions .btn-enhance:hover {
+  background: rgba(124, 58, 237, 0.18);
+  border-color: rgba(124, 58, 237, 0.45);
+  color: #5b21b6;
+  box-shadow: none;
+  transform: none;
+}
+.card-actions .btn-enhance.btn-active-mode {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+.app.dark .card-actions .btn-enhance:not(.btn-active-mode) {
+  color: #c4b5fd;
+}
+.app.dark .card-actions .btn-geo {
+  color: #5eead4;
+}
+
+.card-actions .btn-geo {
+  background: rgba(13, 148, 136, 0.12);
+  border-color: rgba(13, 148, 136, 0.28);
+  color: #0f766e;
+  box-shadow: none;
+}
+.card-actions .btn-geo:hover {
+  background: rgba(13, 148, 136, 0.18);
+  border-color: rgba(13, 148, 136, 0.45);
+  color: #0d9488;
+  box-shadow: none;
+  transform: none;
+}
+
+.card-actions .btn-download {
+  background: var(--glass-strong);
+  border-color: var(--glass-border-soft);
+  color: var(--text-secondary);
+}
+.card-actions .btn-download:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
 
 /* ── Controls right ──────────────────────────────────────────── */
 .controls-right { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
