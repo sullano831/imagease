@@ -78,63 +78,66 @@ function boxBlur(data, w, h, radius) {
  *  1. Unsharp Mask  — reduces pixelation, sharpens edges
  *  2. Subtle contrast boost — adds clarity and depth
  *
- * Pure canvas pixel manipulation, no API, no AI model download needed.
+ * Pure canvas pixel manipulation — no external API needed.
  *
  * @param {string} dataURL   — input data URL
  * @param {string} mimeType  — output mime type
  * @returns {Promise<string>} enhanced data URL
  */
 export function enhanceImage(dataURL, mimeType = 'image/webp') {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => {
-      const w = img.width
-      const h = img.height
-      const canvas = document.createElement('canvas')
-      canvas.width = w
-      canvas.height = h
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(img, 0, 0)
+      // Yield so React can paint the loading spinner before heavy work
+      setTimeout(() => {
+        try {
+          const w = img.width
+          const h = img.height
+          const canvas = document.createElement('canvas')
+          canvas.width = w
+          canvas.height = h
+          const ctx = canvas.getContext('2d')
+          ctx.drawImage(img, 0, 0)
 
-      const imageData = ctx.getImageData(0, 0, w, h)
-      const src = imageData.data
+          const imageData = ctx.getImageData(0, 0, w, h)
+          const src = imageData.data
 
-      // Step 1 — Unsharp Mask
-      // blurred = Gaussian-approx blur of original
-      // sharpened = original + amount × (original − blurred)
-      const blurred = boxBlur(src, w, h, 2)
-      const amount = 1.1          // sharpening strength (0.8–1.5 is good range)
-      const threshold = 4         // ignore tiny differences (reduces noise amplification)
+          const blurred = boxBlur(src, w, h, 2)
+          const amount = 1.1
+          const threshold = 4
 
-      const sharp = new Uint8ClampedArray(src.length)
-      for (let i = 0; i < src.length; i += 4) {
-        for (let c = 0; c < 3; c++) {
-          const diff = src[i + c] - blurred[i + c]
-          sharp[i + c] = Math.max(0, Math.min(255,
-            Math.abs(diff) >= threshold
-              ? src[i + c] + amount * diff
-              : src[i + c]
-          ))
+          const sharp = new Uint8ClampedArray(src.length)
+          for (let i = 0; i < src.length; i += 4) {
+            for (let c = 0; c < 3; c++) {
+              const diff = src[i + c] - blurred[i + c]
+              sharp[i + c] = Math.max(0, Math.min(255,
+                Math.abs(diff) >= threshold
+                  ? src[i + c] + amount * diff
+                  : src[i + c]
+              ))
+            }
+            sharp[i + 3] = src[i + 3]
+          }
+
+          const contrastFactor = 1.06
+          const result = new Uint8ClampedArray(sharp.length)
+          for (let i = 0; i < sharp.length; i += 4) {
+            for (let c = 0; c < 3; c++) {
+              result[i + c] = Math.max(0, Math.min(255,
+                (sharp[i + c] - 128) * contrastFactor + 128
+              ))
+            }
+            result[i + 3] = sharp[i + 3]
+          }
+
+          ctx.putImageData(new ImageData(result, w, h), 0, 0)
+          resolve(canvas.toDataURL(mimeType, 0.95))
+        } catch (err) {
+          reject(err)
         }
-        sharp[i + 3] = src[i + 3]
-      }
-
-      // Step 2 — Subtle contrast boost (S-curve approximation)
-      // Maps each channel: out = clamp((val - 128) * factor + 128)
-      const contrastFactor = 1.06
-      const result = new Uint8ClampedArray(sharp.length)
-      for (let i = 0; i < sharp.length; i += 4) {
-        for (let c = 0; c < 3; c++) {
-          result[i + c] = Math.max(0, Math.min(255,
-            (sharp[i + c] - 128) * contrastFactor + 128
-          ))
-        }
-        result[i + 3] = sharp[i + 3]
-      }
-
-      ctx.putImageData(new ImageData(result, w, h), 0, 0)
-      resolve(canvas.toDataURL(mimeType, 0.95))
+      }, 0)
     }
+    img.onerror = () => reject(new Error('Failed to load image for enhancement'))
     img.src = dataURL
   })
 }

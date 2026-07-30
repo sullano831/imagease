@@ -1,8 +1,6 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import JSZip from 'jszip'
 import { cropCoverWithOffset, loadImage, downloadDataURL, dataURLtoBlob, enhanceImage, MIME_MAP, EXT_MAP } from './imageUtils'
-import { aiEnhance, loadApiKeys } from './aiEnhance'
-import Settings from './Settings'
 import './App.css'
 
 const PRESET_SIZES = [
@@ -14,6 +12,7 @@ const PRESET_SIZES = [
 ]
 
 const THUMB_MAX = 250
+const EDITOR_MAX = 300
 
 function thumbDimensions(w, h) {
   const ratio = w / h
@@ -73,24 +72,6 @@ function SparkleIcon({ size = 13 }) {
   )
 }
 
-function BrainIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
-      <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-1.66z"/>
-      <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-1.66z"/>
-    </svg>
-  )
-}
-
-function GearIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="17" height="17">
-      <circle cx="12" cy="12" r="3"/>
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-    </svg>
-  )
-}
-
 function CropIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="13" height="13">
@@ -102,20 +83,15 @@ function CropIcon() {
 
 // ── Crop Editor ──────────────────────────────────────────────────
 
-const EDITOR_MAX = 300 // max display size for the editor frame
-
 function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, currentOffset, onApply, onCancel }) {
-  // Scale to fit within EDITOR_MAX
   const displayScale = Math.min(EDITOR_MAX / targetW, EDITOR_MAX / targetH, 1)
   const frameW = Math.round(targetW * displayScale)
   const frameH = Math.round(targetH * displayScale)
 
-  // Image rendered at cover scale × displayScale
   const coverScale = Math.max(targetW / sourceImg.naturalWidth, targetH / sourceImg.naturalHeight)
   const imgW = Math.round(sourceImg.naturalWidth * coverScale * displayScale)
   const imgH = Math.round(sourceImg.naturalHeight * coverScale * displayScale)
 
-  // Offset state in display pixels (starts from currentOffset scaled down)
   const [offset, setOffset] = useState({
     x: Math.max(frameW - imgW, Math.min(0, (currentOffset.x / targetW) * frameW)),
     y: Math.max(frameH - imgH, Math.min(0, (currentOffset.y / targetH) * frameH)),
@@ -127,7 +103,6 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
   const startDrag = (clientX, clientY) => {
     dragging.current = { startX: clientX - offset.x, startY: clientY - offset.y }
   }
-
   const moveDrag = (clientX, clientY) => {
     if (!dragging.current) return
     setOffset({
@@ -135,22 +110,16 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
       y: clamp(clientY - dragging.current.startY, frameH - imgH, 0),
     })
   }
-
   const endDrag = () => { dragging.current = null }
 
-  // Mouse events
   const onMouseDown = (e) => { e.preventDefault(); startDrag(e.clientX, e.clientY) }
   const onMouseMove = (e) => moveDrag(e.clientX, e.clientY)
-
-  // Touch events
   const onTouchStart = (e) => { const t = e.touches[0]; startDrag(t.clientX, t.clientY) }
   const onTouchMove = (e) => { e.preventDefault(); const t = e.touches[0]; moveDrag(t.clientX, t.clientY) }
 
   const handleApply = () => {
-    // Convert display offset back to real canvas coordinates
-    const realOffsetX = (offset.x / displayScale)
-    const realOffsetY = (offset.y / displayScale)
-    // These are absolute positions, convert to offset from center
+    const realOffsetX = offset.x / displayScale
+    const realOffsetY = offset.y / displayScale
     const centerX = (targetW - sourceImg.naturalWidth * coverScale) / 2
     const centerY = (targetH - sourceImg.naturalHeight * coverScale) / 2
     const deltaX = realOffsetX - centerX
@@ -159,15 +128,11 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
     onApply(dataURL, { x: deltaX, y: deltaY })
   }
 
-  const handleReset = () => {
-    setOffset({ x: (frameW - imgW) / 2, y: (frameH - imgH) / 2 })
-  }
+  const handleReset = () => setOffset({ x: (frameW - imgW) / 2, y: (frameH - imgH) / 2 })
 
   return (
     <div className="crop-editor">
       <p className="crop-hint">Drag to reposition · frame = output size</p>
-
-      {/* Interactive frame */}
       <div
         className="crop-frame"
         style={{ width: frameW, height: frameH }}
@@ -179,33 +144,23 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
         onTouchMove={onTouchMove}
         onTouchEnd={endDrag}
       >
-        {/* The image, draggable inside */}
         <img
           src={sourceImgSrc || sourceImg.src}
           alt="crop preview"
           draggable={false}
           style={{ position: 'absolute', width: imgW, height: imgH, left: offset.x, top: offset.y, userSelect: 'none', pointerEvents: 'none' }}
         />
-
-        {/* Rule-of-thirds grid */}
         <svg className="crop-grid" width={frameW} height={frameH} viewBox={`0 0 ${frameW} ${frameH}`}>
           <line x1={frameW / 3} y1="0" x2={frameW / 3} y2={frameH} />
           <line x1={(frameW / 3) * 2} y1="0" x2={(frameW / 3) * 2} y2={frameH} />
           <line x1="0" y1={frameH / 3} x2={frameW} y2={frameH / 3} />
           <line x1="0" y1={(frameH / 3) * 2} x2={frameW} y2={(frameH / 3) * 2} />
-          {/* Center crosshair */}
           <circle cx={frameW / 2} cy={frameH / 2} r="3" />
         </svg>
-
-        {/* Corner brackets */}
         <div className="crop-corner tl" /><div className="crop-corner tr" />
         <div className="crop-corner bl" /><div className="crop-corner br" />
       </div>
-
-      {/* Dimension label */}
       <div className="crop-dims-label">{targetW} × {targetH} px</div>
-
-      {/* Actions */}
       <div className="crop-actions">
         <button className="btn btn-ghost btn-sm" onClick={handleReset}>↺ Center</button>
         <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
@@ -217,71 +172,53 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
 
 // ── Image Card ───────────────────────────────────────────────────
 
-function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, onAiEnhanced, onCropApplied }) {
-  const [localEnhancing, setLocalEnhancing] = useState(false)
-  const [aiEnhancing, setAiEnhancing] = useState(false)
-  const [aiStatus, setAiStatus] = useState(null)
-  const [mode, setMode] = useState('original') // 'original' | 'enhanced' | 'ai'
+function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, onCropApplied }) {
+  const [enhancing, setEnhancing] = useState(false)
+  const [showEnhanced, setShowEnhanced] = useState(Boolean(result.enhancedURL))
   const [showOriginal, setShowOriginal] = useState(false)
   const [showCropEditor, setShowCropEditor] = useState(false)
 
+  // Keep in sync when Enhance All (or crop reset) updates parent state
+  useEffect(() => {
+    setShowEnhanced(Boolean(result.enhancedURL))
+  }, [result.enhancedURL])
+
+  const isEnhanced = Boolean(result.enhancedURL) && showEnhanced
   const { tw, th } = thumbDimensions(result.width, result.height)
+  const activeURL = isEnhanced && !showOriginal ? result.enhancedURL : result.dataURL
+  const filename = `${result.name}${isEnhanced ? '-enhanced' : ''}.${EXT_MAP[format]}`
 
-  const activeURL =
-    mode === 'ai' && result.aiURL && !showOriginal ? result.aiURL
-    : mode === 'enhanced' && result.enhancedURL && !showOriginal ? result.enhancedURL
-    : result.dataURL
-
-  const isEnhanced = mode !== 'original'
-  const filename = `${result.name}${mode === 'ai' ? '-ai-enhanced' : mode === 'enhanced' ? '-enhanced' : ''}.${EXT_MAP[format]}`
-
-  const handleLocalEnhance = async () => {
-    if (result.enhancedURL) { setMode('enhanced'); return }
-    setLocalEnhancing(true)
-    const enhanced = await enhanceImage(result.dataURL, mime)
-    onEnhanced(result.name, enhanced)
-    setMode('enhanced')
-    setLocalEnhancing(false)
-  }
-
-  const handleAiEnhance = async () => {
-    const apiKeys = loadApiKeys()
-    const hasKeys = Object.values(apiKeys).some(v => v?.trim())
-    if (!hasKeys) { onAiEnhanced(result.name, null, 'NO_KEYS'); return }
-    if (result.aiURL) { setMode('ai'); return }
-    setAiEnhancing(true)
-    try {
-      const { dataURL: enhanced, provider } = await aiEnhance(result.dataURL, mime, apiKeys, setAiStatus)
-      onAiEnhanced(result.name, enhanced, null, provider)
-      setMode('ai')
-    } catch (err) {
-      onAiEnhanced(result.name, null, err.message)
+  const handleEnhance = async () => {
+    if (result.enhancedURL) {
+      setShowEnhanced(true)
+      return
     }
-    setAiStatus(null)
-    setAiEnhancing(false)
+    setEnhancing(true)
+    try {
+      const enhanced = await enhanceImage(result.dataURL, mime)
+      onEnhanced(result.name, enhanced)
+      setShowEnhanced(true)
+    } finally {
+      setEnhancing(false)
+    }
   }
 
   const handleCropApply = (newDataURL, newOffset) => {
     onCropApplied(result.name, newDataURL, newOffset)
-    setMode('original')
+    setShowEnhanced(false)
     setShowCropEditor(false)
   }
 
-  const badge = mode === 'ai' ? { label: 'AI Enhanced', color: '#0071e3' }
-    : mode === 'enhanced' ? { label: 'Enhanced', color: '#7c3aed' }
-    : null
-
   return (
     <div className={`image-card ${isEnhanced ? 'card-enhanced' : ''} ${showCropEditor ? 'card-editing' : ''}`}
-      style={isEnhanced ? { '--card-glow': badge?.color } : {}}>
+      style={isEnhanced ? { '--card-glow': '#7c3aed' } : {}}>
 
-      {badge && !showCropEditor && (
-        <div className="enhanced-badge" style={{ background: badge.color }}>
-          <SparkleIcon /> {badge.label}
+      {isEnhanced && !showCropEditor && (
+        <div className="enhanced-badge" style={{ background: '#7c3aed' }}>
+          <SparkleIcon /> Enhanced
         </div>
       )}
 
-      {/* ── Normal view ── */}
       {!showCropEditor && (
         <>
           <div className="thumb-wrapper" style={{ width: tw, height: th }}>
@@ -305,23 +242,20 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
             <span className="card-dims">{result.width} × {result.height} px</span>
           </div>
 
-          {aiStatus && <div className="card-ai-status"><span className="mini-spinner" />{aiStatus}</div>}
-
           <div className="card-actions">
-            <button className="btn btn-crop btn-sm" onClick={() => setShowCropEditor(true)}
-              title="Drag to reposition crop">
+            <button className="btn btn-crop btn-sm" onClick={() => setShowCropEditor(true)} title="Adjust crop position">
               <CropIcon /> Adjust
             </button>
-            <button className={`btn btn-enhance btn-sm ${mode === 'enhanced' ? 'btn-active-mode' : ''}`}
-              onClick={handleLocalEnhance} disabled={localEnhancing || aiEnhancing} title="Quick enhance — no API">
-              {localEnhancing ? <><span className="mini-spinner" />…</> : <><SparkleIcon />Quick</>}
-            </button>
-            <button className={`btn btn-ai-enhance btn-sm ${mode === 'ai' ? 'btn-active-mode' : ''}`}
-              onClick={handleAiEnhance} disabled={localEnhancing || aiEnhancing} title="AI enhance — needs API key">
-              {aiEnhancing ? <><span className="mini-spinner" />…</> : <><BrainIcon />AI</>}
+            <button
+              className={`btn btn-enhance btn-sm ${isEnhanced ? 'btn-active-mode' : ''}`}
+              onClick={handleEnhance}
+              disabled={enhancing}
+              title="Sharpen & enhance"
+            >
+              {enhancing ? <><span className="mini-spinner" />Enhancing…</> : <><SparkleIcon />Enhance</>}
             </button>
             {isEnhanced && (
-              <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setMode('original')} title="Reset">↩</button>
+              <button className="btn btn-ghost btn-sm btn-icon" onClick={() => setShowEnhanced(false)} title="Reset">↩</button>
             )}
             <button className="btn btn-ghost btn-sm btn-icon" onClick={() => downloadDataURL(activeURL, filename)} title="Download">
               <DownloadIcon />
@@ -330,7 +264,6 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
         </>
       )}
 
-      {/* ── Crop editor ── */}
       {showCropEditor && sourceImg && (
         <CropEditor
           sourceImg={sourceImg}
@@ -347,17 +280,6 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
   )
 }
 
-// ── Toast ────────────────────────────────────────────────────────
-
-function Toast({ message, type = 'info', onClose }) {
-  return (
-    <div className={`toast toast-${type}`} onClick={onClose}>
-      <span>{message}</span>
-      <button className="toast-close">✕</button>
-    </div>
-  )
-}
-
 // ── App ──────────────────────────────────────────────────────────
 
 export default function App() {
@@ -369,19 +291,10 @@ export default function App() {
   const [format, setFormat] = useState('webp')
   const [processing, setProcessing] = useState(false)
   const [enhancingAll, setEnhancingAll] = useState(false)
-  const [aiEnhancingAll, setAiEnhancingAll] = useState(false)
-  const [aiAllStatus, setAiAllStatus] = useState(null)
   const [showCustom, setShowCustom] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-  const [toast, setToast] = useState(null)
   const fileInputRef = useRef(null)
 
   const mime = MIME_MAP[format]
-
-  const showToast = (message, type = 'info') => {
-    setToast({ message, type })
-    setTimeout(() => setToast(null), 4000)
-  }
 
   const buildSizes = useCallback((customs) => {
     const valid = customs.filter(s => s.width && s.height)
@@ -403,7 +316,6 @@ export default function App() {
       dataURL: cropCoverWithOffset(img, size.width, size.height, 0, 0, m),
       cropOffset: { x: 0, y: 0 },
       enhancedURL: null,
-      aiURL: null,
     })), [])
 
   const handleFile = useCallback(async (file) => {
@@ -439,75 +351,38 @@ export default function App() {
 
   const handleCropApplied = (name, newDataURL, newOffset) =>
     setResults(prev => prev.map(r =>
-      r.name === name ? { ...r, dataURL: newDataURL, cropOffset: newOffset, enhancedURL: null, aiURL: null } : r
+      r.name === name ? { ...r, dataURL: newDataURL, cropOffset: newOffset, enhancedURL: null } : r
     ))
-
-  const handleAiEnhanced = (name, aiURL, error, provider) => {
-    if (error === 'NO_KEYS') {
-      setShowSettings(true)
-      showToast('Add at least one API key to use AI Enhancement.', 'warn')
-      return
-    }
-    if (error === 'ALL_FAILED') {
-      showToast('All AI providers failed. Falling back to Quick Enhance.', 'error')
-      return
-    }
-    if (error) {
-      showToast(`AI error: ${error}`, 'error')
-      return
-    }
-    if (provider) showToast(`Enhanced with ${provider} ✓`, 'success')
-    setResults(prev => prev.map(r => r.name === name ? { ...r, aiURL } : r))
-  }
 
   const handleEnhanceAll = async () => {
     setEnhancingAll(true)
-    const updated = await Promise.all(
-      results.map(async r => {
-        if (r.enhancedURL) return r
-        return { ...r, enhancedURL: await enhanceImage(r.dataURL, mime) }
-      })
-    )
-    setResults(updated)
-    setEnhancingAll(false)
-    showToast('All images enhanced with Quick Enhance ✓', 'success')
-  }
-
-  const handleAiEnhanceAll = async () => {
-    const apiKeys = loadApiKeys()
-    const hasKeys = Object.values(apiKeys).some(v => v?.trim())
-    if (!hasKeys) { setShowSettings(true); showToast('Add at least one API key first.', 'warn'); return }
-
-    setAiEnhancingAll(true)
-    let successCount = 0
-    const updated = [...results]
-
-    for (let i = 0; i < updated.length; i++) {
-      if (updated[i].aiURL) { successCount++; continue }
-      setAiAllStatus(`Processing ${i + 1}/${updated.length}…`)
-      try {
-        const { dataURL: aiURL, provider } = await aiEnhance(updated[i].dataURL, mime, apiKeys, () => {})
-        updated[i] = { ...updated[i], aiURL }
-        successCount++
-      } catch {
-        // skip and move on
+    try {
+      // Process one-by-one so the UI can update and large images don't freeze the tab
+      for (const r of results) {
+        if (r.enhancedURL) continue
+        const enhancedURL = await enhanceImage(r.dataURL, mime)
+        setResults(prev => prev.map(item =>
+          item.name === r.name ? { ...item, enhancedURL } : item
+        ))
+        // Yield to the browser so badges/spinners can paint between images
+        await new Promise(resolve => setTimeout(resolve, 0))
       }
+    } finally {
+      setEnhancingAll(false)
     }
-
-    setResults(updated)
-    setAiEnhancingAll(false)
-    setAiAllStatus(null)
-    showToast(`AI enhanced ${successCount}/${updated.length} images ✓`, 'success')
   }
+
+  const handleUndoAll = () => {
+    setResults(prev => prev.map(r => ({ ...r, enhancedURL: null })))
+  }
+
+  const anyEnhanced = results.some(r => r.enhancedURL)
 
   const downloadAll = async () => {
     if (!results.length) return
     const zip = new JSZip()
     const ext = EXT_MAP[format]
-    results.forEach(r => {
-      const url = r.aiURL || r.enhancedURL || r.dataURL
-      zip.file(`${r.name}.${ext}`, dataURLtoBlob(url))
-    })
+    results.forEach(r => zip.file(`${r.name}.${ext}`, dataURLtoBlob(r.enhancedURL || r.dataURL)))
     const content = await zip.generateAsync({ type: 'blob' })
     const url = URL.createObjectURL(content)
     const a = document.createElement('a')
@@ -524,12 +399,6 @@ export default function App() {
     <div className={`app ${darkMode ? 'dark' : ''}`}>
       <div className="orb orb1" /><div className="orb orb2" /><div className="orb orb3" />
 
-      {/* Settings Modal */}
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
-
-      {/* Toast */}
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
       {/* Header */}
       <header className="app-header">
         <div className="header-inner">
@@ -541,16 +410,11 @@ export default function App() {
             </svg>
             ImageSizer <span className="logo-dot" />
           </div>
-          <div className="header-actions">
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowSettings(true)} title="AI API Settings">
-              <GearIcon /> AI Keys
-            </button>
-            <button className="theme-toggle" onClick={() => setDarkMode(d => !d)} aria-label="Toggle theme">
-              <span className={`icon-wrap ${darkMode ? 'rotate' : ''}`}>
-                {darkMode ? <SunIcon /> : <MoonIcon />}
-              </span>
-            </button>
-          </div>
+          <button className="theme-toggle" onClick={() => setDarkMode(d => !d)} aria-label="Toggle theme">
+            <span className={`icon-wrap ${darkMode ? 'rotate' : ''}`}>
+              {darkMode ? <SunIcon /> : <MoonIcon />}
+            </span>
+          </button>
         </div>
       </header>
 
@@ -559,9 +423,9 @@ export default function App() {
         {/* ── Upload screen ── */}
         {!sourceImage && (
           <section className="hero-section">
-          
+            <span className="hero-eyebrow">Client-side · No uploads · Instant</span>
             <h1 className="hero-title">Resize, Crop &amp;<br /><span>Enhance Images</span></h1>
-            <p className="hero-sub">Upload once. Get perfectly cropped versions — with one-click Quick Enhance or Real-ESRGAN AI Enhancement.</p>
+            <p className="hero-sub">Upload once. Get perfectly cropped versions for every slot — adjust crop position and enhance with one click.</p>
 
             <div
               className={`upload-zone ${isDragging ? 'dragging' : ''}`}
@@ -638,37 +502,27 @@ export default function App() {
 
               <div className="controls-right">
                 {results.length > 0 && (
-                  <>
-                    <button className="btn btn-enhance" onClick={handleEnhanceAll} disabled={enhancingAll || aiEnhancingAll}>
-                      {enhancingAll ? <><span className="mini-spinner" />Enhancing…</> : <><SparkleIcon size={14} />Quick Enhance All</>}
+                  enhancingAll ? (
+                    <button className="btn btn-enhance" disabled>
+                      <span className="mini-spinner" /> Enhancing…
                     </button>
-                    <button className="btn btn-ai-enhance" onClick={handleAiEnhanceAll} disabled={enhancingAll || aiEnhancingAll}>
-                      {aiEnhancingAll
-                        ? <><span className="mini-spinner" />{aiAllStatus || 'AI Enhancing…'}</>
-                        : <><BrainIcon />AI Enhance All</>}
+                  ) : anyEnhanced ? (
+                    <button className="btn btn-ghost" onClick={handleUndoAll}>
+                      ↩ Undo All
                     </button>
-                    <button className="btn btn-primary" onClick={downloadAll}>
-                      <DownloadIcon /> Download All (ZIP)
+                  ) : (
+                    <button className="btn btn-enhance" onClick={handleEnhanceAll}>
+                      <SparkleIcon size={14} /> Enhance All
                     </button>
-                  </>
+                  )
+                )}
+                {results.length > 0 && (
+                  <button className="btn btn-primary" onClick={downloadAll}>
+                    <DownloadIcon /> Download All (ZIP)
+                  </button>
                 )}
               </div>
             </div>
-
-            {/* Enhance legend */}
-            {results.length > 0 && !processing && (
-              <div className="enhance-legend">
-                <div className="legend-item">
-                  <span className="legend-dot" style={{ background: '#7c3aed' }} />
-                  <span><strong>Quick Enhance</strong> — Unsharp Mask + Contrast. Instant, no API, works offline.</span>
-                </div>
-                <div className="legend-item">
-                  <span className="legend-dot" style={{ background: '#0071e3' }} />
-                  <span><strong>AI Enhance</strong> — Real-ESRGAN neural network via Replicate / Stability AI / Deep AI. Needs API key. Auto-fallback if one runs out of credits.</span>
-                  <button className="legend-setup" onClick={() => setShowSettings(true)}><GearIcon /> Setup keys</button>
-                </div>
-              </div>
-            )}
 
             {/* Custom sizes */}
             <div className="customize-section">
@@ -709,7 +563,6 @@ export default function App() {
                     sourceImg={sourceImage?.img}
                     sourceImgSrc={sourceImage?.src}
                     onEnhanced={handleEnhanced}
-                    onAiEnhanced={handleAiEnhanced}
                     onCropApplied={handleCropApplied}
                   />
                 ))}
