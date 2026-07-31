@@ -7,11 +7,12 @@ import History from './History'
 import './App.css'
 
 const PRESET_SIZES = [
-  { name: 'hero-image-desktop', width: 1440, height: 800 },
-  { name: 'hero-image-mobile', width: 375, height: 720 },
-  { name: 'program-image', width: 375, height: 470 },
-  { name: 'amenities-image', width: 342, height: 428 },
-  { name: 'community-image', width: 300, height: 300 },
+  { name: 'header-image', width: 1920, height: 1080 },
+  { name: 'header-image-mobile', width: 480, height: 720 },
+  { name: 'amenities-image', width: 480, height: 720 },
+  { name: 'top-program-image', width: 480, height: 720 },
+  { name: 'community-image', width: 510, height: 620 },
+  { name: 'about-us-image', width: 510, height: 620 },
 ]
 
 const THUMB_MAX = 250

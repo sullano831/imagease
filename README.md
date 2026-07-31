@@ -4,7 +4,7 @@ A React + Vite web app that lets you upload an image and automatically generates
 
 ## Features
 
-- **5 preset sizes** with centered `object-fit: cover` crop
+- **6 preset sizes** with centered `object-fit: cover` crop
 - **Custom sizes** — add as many as you like
 - **Output formats** — WEBP, PNG, or JPEG
 - **Download All** as a ZIP
@@ -16,11 +16,12 @@ A React + Vite web app that lets you upload an image and automatically generates
 
 | Filename | Width × Height |
 |---|---|
-| hero-image-desktop | 1440 × 800 |
-| hero-image-mobile | 375 × 720 |
-| program-image | 375 × 470 |
-| amenities-image | 342 × 428 |
-| community-image | 300 × 300 |
+| header-image | 1920 × 1080 |
+| header-image-mobile | 480 × 720 |
+| amenities-image | 480 × 720 |
+| top-program-image | 480 × 720 |
+| community-image | 510 × 620 |
+| about-us-image | 510 × 620 |
 
 ## Getting Started
 
