@@ -6,17 +6,28 @@ import { searchLocations, geotagImage, geotaggedFilename } from './geotag'
 import History from './History'
 import './App.css'
 
-const PRESET_SIZES = [
-  { name: 'header-image', width: 1920, height: 1080 },
-  { name: 'header-image-mobile', width: 480, height: 720 },
-  { name: 'amenities-image', width: 480, height: 720 },
-  { name: 'top-program-image', width: 480, height: 720 },
-  { name: 'community-image', width: 510, height: 620 },
-  { name: 'about-us-image', width: 510, height: 620 },
+const DEFAULT_PRESETS = [
+  { id: 'header-image', name: 'header-image', width: 1920, height: 1080 },
+  { id: 'header-image-mobile', name: 'header-image-mobile', width: 480, height: 720 },
+  { id: 'amenities-image', name: 'amenities-image', width: 480, height: 720 },
+  { id: 'top-program-image', name: 'top-program-image', width: 480, height: 720 },
+  { id: 'community-image', name: 'community-image', width: 510, height: 620 },
+  { id: 'about-us-image', name: 'about-us-image', width: 510, height: 620 },
 ]
 
 const THUMB_MAX = 250
 const EDITOR_MAX = 300
+
+/** Safe filename / folder name for downloads. */
+function sanitizeFilename(name, fallback = 'image') {
+  const cleaned = String(name || '')
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^\.+|\.+$/g, '')
+  return cleaned || fallback
+}
 
 function thumbDimensions(w, h) {
   const ratio = w / h
@@ -284,7 +295,7 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
 
 // ── Image Card ───────────────────────────────────────────────────
 
-function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, onCropApplied, geoLocation, onGeotagDownload }) {
+function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, onCropApplied, onRename, geoLocation, onGeotagDownload }) {
   const [enhancing, setEnhancing] = useState(false)
   const [showEnhanced, setShowEnhanced] = useState(Boolean(result.enhancedURL))
   const [showOriginal, setShowOriginal] = useState(false)
@@ -299,7 +310,8 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
   const isEnhanced = Boolean(result.enhancedURL) && showEnhanced
   const { tw, th } = thumbDimensions(result.width, result.height)
   const activeURL = isEnhanced && !showOriginal ? result.enhancedURL : result.dataURL
-  const filename = `${result.name}${isEnhanced ? '-enhanced' : ''}.${EXT_MAP[format]}`
+  const safeName = sanitizeFilename(result.name, result.id)
+  const filename = `${safeName}${isEnhanced ? '-enhanced' : ''}.${EXT_MAP[format]}`
 
   const handleEnhance = async () => {
     if (result.enhancedURL) {
@@ -309,7 +321,7 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
     setEnhancing(true)
     try {
       const enhanced = await enhanceImage(result.dataURL, mime)
-      onEnhanced(result.name, enhanced)
+      onEnhanced(result.id, enhanced)
       setShowEnhanced(true)
     } finally {
       setEnhancing(false)
@@ -317,7 +329,7 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
   }
 
   const handleCropApply = (newDataURL, newOffset, newZoom = 1) => {
-    onCropApplied(result.name, newDataURL, newOffset, newZoom)
+    onCropApplied(result.id, newDataURL, newOffset, newZoom)
     setShowEnhanced(false)
     setShowCropEditor(false)
   }
@@ -326,7 +338,7 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
     if (!geoLocation || !onGeotagDownload) return
     setGeoBusy(true)
     try {
-      await onGeotagDownload(activeURL, result.name)
+      await onGeotagDownload(activeURL, safeName)
     } finally {
       setGeoBusy(false)
     }
@@ -345,7 +357,7 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
       {!showCropEditor && (
         <>
           <div className="thumb-wrapper" style={{ width: tw, height: th }}>
-            <img src={activeURL} alt={result.name} style={{ width: tw, height: th, display: 'block' }} />
+            <img src={activeURL} alt={safeName} style={{ width: tw, height: th, display: 'block' }} />
             {isEnhanced && (
               <button
                 className="compare-btn"
@@ -361,7 +373,13 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
           </div>
 
           <div className="card-info">
-            <span className="card-name">{result.name}</span>
+            <input
+              className="card-name-input"
+              value={result.name}
+              onChange={(e) => onRename?.(result.id, e.target.value)}
+              aria-label="Rename file"
+              title="Rename file"
+            />
             <span className="card-dims">{result.width} × {result.height} px</span>
           </div>
 
@@ -429,6 +447,7 @@ export default function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [sourceImage, setSourceImage] = useState(null)
   const [results, setResults] = useState([])
+  const [presets, setPresets] = useState(() => DEFAULT_PRESETS.map((p) => ({ ...p })))
   const [customSizes, setCustomSizes] = useState([{ id: Date.now(), name: '', width: '', height: '' }])
   const [format, setFormat] = useState('webp')
   const [processing, setProcessing] = useState(false)
@@ -443,6 +462,8 @@ export default function App() {
   const [geoError, setGeoError] = useState('')
   const [geoZipBusy, setGeoZipBusy] = useState(false)
   const [showGeotag, setShowGeotag] = useState(false)
+  const [zipModal, setZipModal] = useState(null) // null | { mode: 'all' | 'geotagged' }
+  const [zipFolderName, setZipFolderName] = useState('')
   const fileInputRef = useRef(null)
   const geoSearchTimer = useRef(null)
 
@@ -459,20 +480,27 @@ export default function App() {
 
   useEffect(() => { refreshHistoryCount() }, [refreshHistoryCount])
 
-  const buildSizes = useCallback((customs) => {
+  const buildSizes = useCallback((customs, presetList = presets) => {
     const valid = customs.filter(s => s.width && s.height)
     return [
-      ...PRESET_SIZES,
+      ...presetList.map((p) => ({
+        id: p.id,
+        name: sanitizeFilename(p.name, p.id),
+        width: p.width,
+        height: p.height,
+      })),
       ...valid.map(s => ({
-        name: s.name || `custom-${s.width}x${s.height}`,
+        id: `custom-${s.id}`,
+        name: sanitizeFilename(s.name, `custom-${s.width}x${s.height}`),
         width: Number(s.width),
         height: Number(s.height),
       })),
     ]
-  }, [])
+  }, [presets])
 
   const runProcess = useCallback((img, sizes, m) =>
     sizes.map(size => ({
+      id: size.id || size.name,
       name: size.name,
       width: size.width,
       height: size.height,
@@ -481,6 +509,19 @@ export default function App() {
       cropZoom: 1,
       enhancedURL: null,
     })), [])
+
+  const updatePresetName = (id, name) => {
+    setPresets((prev) => prev.map((p) => (p.id === id ? { ...p, name } : p)))
+    setResults((prev) => prev.map((r) => (r.id === id ? { ...r, name } : r)))
+  }
+
+  const renameResult = (id, name) => {
+    setResults((prev) => prev.map((r) => (r.id === id ? { ...r, name } : r)))
+    setPresets((prev) => prev.map((p) => (p.id === id ? { ...p, name } : p)))
+    setCustomSizes((prev) => prev.map((s) => (
+      `custom-${s.id}` === id ? { ...s, name } : s
+    )))
+  }
 
   const startWithFile = useCallback(async (file, { saveHistory = true } = {}) => {
     if (!file || !file.type?.startsWith('image/')) return
@@ -532,12 +573,12 @@ export default function App() {
     setProcessing(false)
   }
 
-  const handleEnhanced = (name, enhancedURL) =>
-    setResults(prev => prev.map(r => r.name === name ? { ...r, enhancedURL } : r))
+  const handleEnhanced = (id, enhancedURL) =>
+    setResults(prev => prev.map(r => r.id === id ? { ...r, enhancedURL } : r))
 
-  const handleCropApplied = (name, newDataURL, newOffset, newZoom = 1) =>
+  const handleCropApplied = (id, newDataURL, newOffset, newZoom = 1) =>
     setResults(prev => prev.map(r =>
-      r.name === name
+      r.id === id
         ? { ...r, dataURL: newDataURL, cropOffset: newOffset, cropZoom: newZoom, enhancedURL: null }
         : r
     ))
@@ -550,7 +591,7 @@ export default function App() {
         if (r.enhancedURL) continue
         const enhancedURL = await enhanceImage(r.dataURL, mime)
         setResults(prev => prev.map(item =>
-          item.name === r.name ? { ...item, enhancedURL } : item
+          item.id === r.id ? { ...item, enhancedURL } : item
         ))
         // Yield to the browser so badges/spinners can paint between images
         await new Promise(resolve => setTimeout(resolve, 0))
@@ -566,16 +607,72 @@ export default function App() {
 
   const anyEnhanced = results.some(r => r.enhancedURL)
 
-  const downloadAll = async () => {
-    if (!results.length) return
-    const zip = new JSZip()
+  const openZipModal = (mode) => {
+    setZipFolderName(mode === 'geotagged' ? 'images-geotagged' : `images-${format}`)
+    setZipModal({ mode })
+  }
+
+  const closeZipModal = () => {
+    if (geoZipBusy) return
+    setZipModal(null)
+  }
+
+  const confirmZipDownload = async () => {
+    if (!zipModal || !results.length) return
+    const fallback = zipModal.mode === 'geotagged' ? 'images-geotagged' : `images-${format}`
+    const folderName = sanitizeFilename(zipFolderName, fallback)
     const ext = EXT_MAP[format]
-    results.forEach(r => zip.file(`${r.name}.${ext}`, dataURLtoBlob(r.enhancedURL || r.dataURL)))
-    const content = await zip.generateAsync({ type: 'blob' })
-    const url = URL.createObjectURL(content)
-    const a = document.createElement('a')
-    a.href = url; a.download = `images-${format}.zip`; a.click()
-    URL.revokeObjectURL(url)
+
+    if (zipModal.mode === 'all') {
+      const zip = new JSZip()
+      const folder = zip.folder(folderName)
+      results.forEach((r) => {
+        const base = sanitizeFilename(r.name, r.id)
+        const fileName = `${base}${r.enhancedURL ? '-enhanced' : ''}.${ext}`
+        folder.file(fileName, dataURLtoBlob(r.enhancedURL || r.dataURL))
+      })
+      const content = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(content)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${folderName}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+      setZipModal(null)
+      return
+    }
+
+    if (!geoSelected) return
+    setGeoZipBusy(true)
+    try {
+      const zip = new JSZip()
+      const folder = zip.folder(folderName)
+      for (const r of results) {
+        const source = r.enhancedURL || r.dataURL
+        const tagged = await geotagImage(source, {
+          lat: geoSelected.lat,
+          lng: geoSelected.lng,
+          label: geoSelected.label,
+          format,
+        })
+        folder.file(
+          geotaggedFilename(sanitizeFilename(r.name, r.id), format),
+          dataURLtoBlob(tagged),
+        )
+      }
+      const content = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(content)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${folderName}.zip`
+      a.click()
+      URL.revokeObjectURL(url)
+      setZipModal(null)
+    } catch (err) {
+      setGeoError(err.message || 'Geotagged download failed.')
+    } finally {
+      setGeoZipBusy(false)
+    }
   }
 
   const runGeoSearch = useCallback(async (query) => {
@@ -616,35 +713,6 @@ export default function App() {
     })
     downloadDataURL(tagged, geotaggedFilename(baseName, format))
   }, [geoSelected, format])
-
-  const downloadAllGeotagged = async () => {
-    if (!results.length || !geoSelected) return
-    setGeoZipBusy(true)
-    try {
-      const zip = new JSZip()
-      for (const r of results) {
-        const source = r.enhancedURL || r.dataURL
-        const tagged = await geotagImage(source, {
-          lat: geoSelected.lat,
-          lng: geoSelected.lng,
-          label: geoSelected.label,
-          format,
-        })
-        zip.file(geotaggedFilename(r.name, format), dataURLtoBlob(tagged))
-      }
-      const content = await zip.generateAsync({ type: 'blob' })
-      const url = URL.createObjectURL(content)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'images-geotagged.zip'
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (err) {
-      setGeoError(err.message || 'Geotagged download failed.')
-    } finally {
-      setGeoZipBusy(false)
-    }
-  }
 
   const addCustomSize = () => setCustomSizes(p => [...p, { id: Date.now(), name: '', width: '', height: '' }])
   const removeCustomSize = (id) => setCustomSizes(p => p.filter(s => s.id !== id))
@@ -735,12 +803,19 @@ export default function App() {
               <div className="presets-panel">
                 <div className="presets-panel-header">
                   <span className="presets-panel-title">Output sizes</span>
-                  <span className="presets-panel-count">{PRESET_SIZES.length} presets</span>
+                  <span className="presets-panel-count">{presets.length} presets</span>
                 </div>
+                <p className="presets-rename-hint">Click a name to rename the output filename.</p>
                 <div className="presets-list">
-                  {PRESET_SIZES.map(s => (
-                    <div key={s.name} className="preset-row">
-                      <span className="preset-row-name">{s.name}</span>
+                  {presets.map(s => (
+                    <div key={s.id} className="preset-row">
+                      <input
+                        className="preset-row-name-input"
+                        value={s.name}
+                        onChange={(e) => updatePresetName(s.id, e.target.value)}
+                        aria-label={`Rename ${s.id}`}
+                        title="Rename output filename"
+                      />
                       <span className="preset-row-dim">{s.width} × {s.height}</span>
                     </div>
                   ))}
@@ -844,12 +919,12 @@ export default function App() {
                   )
                 )}
                 {results.length > 0 && (
-                  <button className="btn btn-primary" onClick={downloadAll}>
+                  <button className="btn btn-primary" onClick={() => openZipModal('all')}>
                     <DownloadIcon /> Download All (ZIP)
                   </button>
                 )}
                 {results.length > 0 && geoSelected && (
-                  <button className="btn btn-geo" onClick={downloadAllGeotagged} disabled={geoZipBusy}>
+                  <button className="btn btn-geo" onClick={() => openZipModal('geotagged')} disabled={geoZipBusy}>
                     {geoZipBusy
                       ? <><span className="mini-spinner" /> Geotagging…</>
                       : <><PinIcon size={14} /> Download All Geotagged</>}
@@ -1021,7 +1096,7 @@ export default function App() {
               <div className="results-grid">
                 {results.map(r => (
                   <ImageCard
-                    key={r.name}
+                    key={r.id}
                     result={r}
                     format={format}
                     mime={mime}
@@ -1029,6 +1104,7 @@ export default function App() {
                     sourceImgSrc={sourceImage?.src}
                     onEnhanced={handleEnhanced}
                     onCropApplied={handleCropApplied}
+                    onRename={renameResult}
                     geoLocation={geoSelected}
                     onGeotagDownload={handleGeotagDownload}
                   />
@@ -1040,6 +1116,51 @@ export default function App() {
           </>
         )}
       </main>
+
+      {zipModal && (
+        <div className="modal-backdrop" onClick={closeZipModal}>
+          <div
+            className={`confirm-modal zip-name-modal ${geoZipBusy ? 'is-busy' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="zip-name-title"
+          >
+            <h3 id="zip-name-title" className="confirm-modal-title">
+              {zipModal.mode === 'geotagged' ? 'Download geotagged ZIP' : 'Download All ZIP'}
+            </h3>
+            <p className="confirm-modal-message">
+              Name the folder (or keep the default). Files will be saved inside this folder in the ZIP.
+            </p>
+            <label className="zip-name-label" htmlFor="zip-folder-name">Folder name</label>
+            <input
+              id="zip-folder-name"
+              className="input-field zip-name-input"
+              value={zipFolderName}
+              onChange={(e) => setZipFolderName(e.target.value)}
+              placeholder={zipModal.mode === 'geotagged' ? 'images-geotagged' : `images-${format}`}
+              autoFocus
+              disabled={geoZipBusy}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !geoZipBusy) {
+                  e.preventDefault()
+                  confirmZipDownload()
+                }
+              }}
+            />
+            <div className="confirm-modal-actions">
+              <button className="btn btn-ghost" onClick={closeZipModal} disabled={geoZipBusy}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={confirmZipDownload} disabled={geoZipBusy}>
+                {geoZipBusy
+                  ? <><span className="mini-spinner" /> Preparing…</>
+                  : <><DownloadIcon /> Download</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <footer className="app-footer">
         <span className="footer-brand">ImagEase</span>

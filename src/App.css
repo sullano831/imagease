@@ -325,12 +325,44 @@ body {
   border-color: var(--glass-border);
 }
 
+.presets-rename-hint {
+  margin: 0 0 0.15rem;
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  line-height: 1.35;
+}
+
 .preset-row-name {
   font-size: 0.76rem;
   font-weight: 600;
   color: var(--text-primary);
   word-break: break-word;
   line-height: 1.25;
+}
+
+.preset-row-name-input {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  padding: 0.1rem 0.2rem;
+  margin: -0.1rem -0.2rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-primary);
+  line-height: 1.25;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.preset-row-name-input:hover {
+  border-color: var(--glass-border-soft);
+  background: var(--glass);
+}
+.preset-row-name-input:focus {
+  border-color: var(--accent);
+  background: var(--glass-strong);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .preset-row-dim {
@@ -539,6 +571,32 @@ body {
 .thumb-wrapper img { display: block; }
 .card-info { width: 100%; text-align: center; }
 .card-name { display: block; font-weight: 600; font-size: 0.82rem; word-break: break-all; color: var(--text-primary); }
+.card-name-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 8px;
+  padding: 0.2rem 0.35rem;
+  font-weight: 600;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  text-align: center;
+  word-break: break-all;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.card-name-input:hover {
+  border-color: var(--glass-border-soft);
+  background: var(--glass-subtle);
+}
+.card-name-input:focus {
+  border-color: var(--accent);
+  background: var(--glass-strong);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 .card-dims { display: block; color: var(--text-tertiary); font-size: 0.75rem; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
 
 /* ── Enhance button ──────────────────────────────────────────── */
@@ -1371,6 +1429,32 @@ body {
   width: 100%;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+.zip-name-modal {
+  align-items: stretch;
+  text-align: left;
+  max-width: 440px;
+}
+
+.zip-name-modal .confirm-modal-title,
+.zip-name-modal .confirm-modal-message {
+  text-align: center;
+}
+
+.zip-name-label {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.zip-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  flex: none;
 }
 
 .btn-delete-confirm {
