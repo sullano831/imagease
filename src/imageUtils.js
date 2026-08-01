@@ -8,9 +8,19 @@ export function cropCover(img, targetW, targetH, mimeType = 'image/webp', qualit
 /**
  * Crops with a custom pixel offset from the centered position.
  * offsetX/offsetY: how many px to shift the image (positive = right/down).
+ * zoom: 1 = cover fit; >1 zooms in (still clamped so the frame stays covered).
  * Automatically clamped so the image always fully covers the target frame.
  */
-export function cropCoverWithOffset(img, targetW, targetH, offsetX, offsetY, mimeType = 'image/webp', quality = 0.92) {
+export function cropCoverWithOffset(
+  img,
+  targetW,
+  targetH,
+  offsetX,
+  offsetY,
+  mimeType = 'image/webp',
+  quality = 0.92,
+  zoom = 1,
+) {
   const canvas = document.createElement('canvas')
   canvas.width = targetW
   canvas.height = targetH
@@ -18,7 +28,8 @@ export function cropCoverWithOffset(img, targetW, targetH, offsetX, offsetY, mim
 
   const srcW = img.naturalWidth
   const srcH = img.naturalHeight
-  const scale = Math.max(targetW / srcW, targetH / srcH)
+  const z = Math.max(1, Math.min(3, Number(zoom) || 1))
+  const scale = Math.max(targetW / srcW, targetH / srcH) * z
   const scaledW = srcW * scale
   const scaledH = srcH * scale
 

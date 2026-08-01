@@ -105,22 +105,75 @@ function HistoryIcon() {
 
 // ── Crop Editor ──────────────────────────────────────────────────
 
-function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, currentOffset, onApply, onCancel }) {
+const MIN_CROP_ZOOM = 1
+const MAX_CROP_ZOOM = 3
+
+function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, currentOffset, currentZoom = 1, onApply, onCancel }) {
   const displayScale = Math.min(EDITOR_MAX / targetW, EDITOR_MAX / targetH, 1)
   const frameW = Math.round(targetW * displayScale)
   const frameH = Math.round(targetH * displayScale)
 
-  const coverScale = Math.max(targetW / sourceImg.naturalWidth, targetH / sourceImg.naturalHeight)
-  const imgW = Math.round(sourceImg.naturalWidth * coverScale * displayScale)
-  const imgH = Math.round(sourceImg.naturalHeight * coverScale * displayScale)
+  const baseCover = Math.max(targetW / sourceImg.naturalWidth, targetH / sourceImg.naturalHeight)
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val))
+  const clampZoom = (z) => clamp(Number(z) || 1, MIN_CROP_ZOOM, MAX_CROP_ZOOM)
 
-  const [offset, setOffset] = useState({
-    x: Math.max(frameW - imgW, Math.min(0, (currentOffset.x / targetW) * frameW)),
-    y: Math.max(frameH - imgH, Math.min(0, (currentOffset.y / targetH) * frameH)),
+  const sizeForZoom = (z) => {
+    const zoom = clampZoom(z)
+    return {
+      imgW: Math.round(sourceImg.naturalWidth * baseCover * zoom * displayScale),
+      imgH: Math.round(sourceImg.naturalHeight * baseCover * zoom * displayScale),
+    }
+  }
+
+  const [zoom, setZoom] = useState(() => clampZoom(currentZoom))
+  const { imgW, imgH } = sizeForZoom(zoom)
+
+  const [offset, setOffset] = useState(() => {
+    const z = clampZoom(currentZoom)
+    const { imgW: iw, imgH: ih } = sizeForZoom(z)
+    const centerX = (frameW - iw) / 2
+    const centerY = (frameH - ih) / 2
+    const ox = currentOffset?.x || 0
+    const oy = currentOffset?.y || 0
+    return {
+      x: clamp(centerX + ox * displayScale, frameW - iw, 0),
+      y: clamp(centerY + oy * displayScale, frameH - ih, 0),
+    }
   })
 
-  const clamp = (val, min, max) => Math.max(min, Math.min(max, val))
   const dragging = useRef(null)
+  const frameRef = useRef(null)
+  const zoomRef = useRef(zoom)
+  const sizeRef = useRef({ imgW, imgH })
+  zoomRef.current = zoom
+  sizeRef.current = { imgW, imgH }
+
+  const applyZoom = (nextZoom) => {
+    const z = clampZoom(nextZoom)
+    const { imgW: nextW, imgH: nextH } = sizeForZoom(z)
+    const { imgW: curW, imgH: curH } = sizeRef.current
+    setOffset((prev) => {
+      const cx = prev.x + curW / 2
+      const cy = prev.y + curH / 2
+      return {
+        x: clamp(cx - nextW / 2, frameW - nextW, 0),
+        y: clamp(cy - nextH / 2, frameH - nextH, 0),
+      }
+    })
+    setZoom(z)
+  }
+
+  useEffect(() => {
+    const el = frameRef.current
+    if (!el) return undefined
+    const onWheel = (e) => {
+      e.preventDefault()
+      const step = e.deltaY > 0 ? -0.1 : 0.1
+      applyZoom(zoomRef.current + step)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [frameW, frameH, baseCover, displayScale])
 
   const startDrag = (clientX, clientY) => {
     dragging.current = { startX: clientX - offset.x, startY: clientY - offset.y }
@@ -140,22 +193,28 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
   const onTouchMove = (e) => { e.preventDefault(); const t = e.touches[0]; moveDrag(t.clientX, t.clientY) }
 
   const handleApply = () => {
+    const coverScale = baseCover * zoom
     const realOffsetX = offset.x / displayScale
     const realOffsetY = offset.y / displayScale
     const centerX = (targetW - sourceImg.naturalWidth * coverScale) / 2
     const centerY = (targetH - sourceImg.naturalHeight * coverScale) / 2
     const deltaX = realOffsetX - centerX
     const deltaY = realOffsetY - centerY
-    const dataURL = cropCoverWithOffset(sourceImg, targetW, targetH, deltaX, deltaY, mimeType)
-    onApply(dataURL, { x: deltaX, y: deltaY })
+    const dataURL = cropCoverWithOffset(sourceImg, targetW, targetH, deltaX, deltaY, mimeType, 0.92, zoom)
+    onApply(dataURL, { x: deltaX, y: deltaY }, zoom)
   }
 
-  const handleReset = () => setOffset({ x: (frameW - imgW) / 2, y: (frameH - imgH) / 2 })
+  const handleReset = () => {
+    const { imgW: iw, imgH: ih } = sizeForZoom(1)
+    setZoom(1)
+    setOffset({ x: (frameW - iw) / 2, y: (frameH - ih) / 2 })
+  }
 
   return (
     <div className="crop-editor">
-      <p className="crop-hint">Drag to reposition · frame = output size</p>
+      <p className="crop-hint">Drag to reposition · scroll or use controls to zoom</p>
       <div
+        ref={frameRef}
         className="crop-frame"
         style={{ width: frameW, height: frameH }}
         onMouseDown={onMouseDown}
@@ -183,8 +242,39 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
         <div className="crop-corner bl" /><div className="crop-corner br" />
       </div>
       <div className="crop-dims-label">{targetW} × {targetH} px</div>
+      <div className="crop-zoom">
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm crop-zoom-btn"
+          onClick={() => applyZoom(zoom - 0.1)}
+          disabled={zoom <= MIN_CROP_ZOOM}
+          title="Zoom out"
+        >
+          −
+        </button>
+        <input
+          className="crop-zoom-slider"
+          type="range"
+          min={MIN_CROP_ZOOM}
+          max={MAX_CROP_ZOOM}
+          step="0.05"
+          value={zoom}
+          onChange={(e) => applyZoom(e.target.value)}
+          aria-label="Zoom"
+        />
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm crop-zoom-btn"
+          onClick={() => applyZoom(zoom + 0.1)}
+          disabled={zoom >= MAX_CROP_ZOOM}
+          title="Zoom in"
+        >
+          +
+        </button>
+        <span className="crop-zoom-value">{Math.round(zoom * 100)}%</span>
+      </div>
       <div className="crop-actions">
-        <button className="btn btn-ghost btn-sm" onClick={handleReset}>↺ Center</button>
+        <button className="btn btn-ghost btn-sm" onClick={handleReset}>↺ Reset</button>
         <button className="btn btn-ghost btn-sm" onClick={onCancel}>Cancel</button>
         <button className="btn btn-sm" onClick={handleApply}>Apply Crop</button>
       </div>
@@ -226,8 +316,8 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
     }
   }
 
-  const handleCropApply = (newDataURL, newOffset) => {
-    onCropApplied(result.name, newDataURL, newOffset)
+  const handleCropApply = (newDataURL, newOffset, newZoom = 1) => {
+    onCropApplied(result.name, newDataURL, newOffset, newZoom)
     setShowEnhanced(false)
     setShowCropEditor(false)
   }
@@ -323,6 +413,7 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
           targetH={result.height}
           mimeType={mime}
           currentOffset={result.cropOffset || { x: 0, y: 0 }}
+          currentZoom={result.cropZoom || 1}
           onApply={handleCropApply}
           onCancel={() => setShowCropEditor(false)}
         />
@@ -385,8 +476,9 @@ export default function App() {
       name: size.name,
       width: size.width,
       height: size.height,
-      dataURL: cropCoverWithOffset(img, size.width, size.height, 0, 0, m),
+      dataURL: cropCoverWithOffset(img, size.width, size.height, 0, 0, m, 0.92, 1),
       cropOffset: { x: 0, y: 0 },
+      cropZoom: 1,
       enhancedURL: null,
     })), [])
 
@@ -443,9 +535,11 @@ export default function App() {
   const handleEnhanced = (name, enhancedURL) =>
     setResults(prev => prev.map(r => r.name === name ? { ...r, enhancedURL } : r))
 
-  const handleCropApplied = (name, newDataURL, newOffset) =>
+  const handleCropApplied = (name, newDataURL, newOffset, newZoom = 1) =>
     setResults(prev => prev.map(r =>
-      r.name === name ? { ...r, dataURL: newDataURL, cropOffset: newOffset, enhancedURL: null } : r
+      r.name === name
+        ? { ...r, dataURL: newDataURL, cropOffset: newOffset, cropZoom: newZoom, enhancedURL: null }
+        : r
     ))
 
   const handleEnhanceAll = async () => {

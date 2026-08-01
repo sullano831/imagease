@@ -695,6 +695,45 @@ body {
   font-variant-numeric: tabular-nums; letter-spacing: 0.03em;
 }
 
+.crop-zoom {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  max-width: 280px;
+}
+
+.crop-zoom-btn {
+  flex: 0 0 2rem;
+  width: 2rem;
+  padding: 0.3rem 0 !important;
+  justify-content: center;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.crop-zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.crop-zoom-slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.crop-zoom-value {
+  flex: 0 0 2.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 .crop-actions {
   display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; justify-content: center;
   width: 100%;
