@@ -304,7 +304,7 @@ export default function History({ onReuse, onBack }) {
       <div className="history-topbar">
         <div>
           <h1 className="history-title">Upload history</h1>
-          <p className="history-sub">Saved only on this device — reuse any photo anytime.</p>
+          <p className="history-sub">Kept only on this device — your photos stay close, ready whenever you return.</p>
         </div>
         <button className="btn btn-ghost btn-sm" onClick={onBack}>← Back</button>
       </div>
@@ -346,8 +346,8 @@ export default function History({ onReuse, onBack }) {
         <div className="processing-state"><div className="spinner" /><p>Loading history…</p></div>
       ) : items.length === 0 ? (
         <div className="history-empty">
-          <p className="history-empty-title">No uploads yet</p>
-          <p className="history-empty-sub">Images you upload will appear here so you can reuse them later.</p>
+          <p className="history-empty-title">Your gallery is waiting</p>
+          <p className="history-empty-sub">When you upload a photo, it will rest here — soft and ready to use again.</p>
           <button className="btn btn-primary" onClick={onBack}>Upload an image</button>
         </div>
       ) : (

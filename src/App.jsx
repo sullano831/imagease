@@ -361,10 +361,10 @@ function ImageCard({ result, format, mime, quality, sourceImg, sourceImgSrc, onE
 
   return (
     <div className={`image-card ${isEnhanced ? 'card-enhanced' : ''} ${showCropEditor ? 'card-editing' : ''}`}
-      style={isEnhanced ? { '--card-glow': '#7c3aed' } : {}}>
+      style={isEnhanced ? { '--card-glow': 'var(--accent)' } : {}}>
 
       {isEnhanced && !showCropEditor && (
-        <div className="enhanced-badge" style={{ background: '#7c3aed' }}>
+        <div className="enhanced-badge">
           <SparkleIcon /> Enhanced
         </div>
       )}
@@ -763,7 +763,13 @@ export default function App() {
 
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
-      <div className="orb orb1" /><div className="orb orb2" /><div className="orb orb3" />
+      <div className="atelier-bg" aria-hidden="true">
+        <div className="atelier-aurora atelier-aurora-a" />
+        <div className="atelier-aurora atelier-aurora-b" />
+        <div className="atelier-aurora atelier-aurora-c" />
+        <div className="atelier-sheen" />
+        <div className="atelier-grain" />
+      </div>
 
       {/* Header */}
       <header className="app-header">
@@ -774,12 +780,14 @@ export default function App() {
             onClick={() => { setView('home'); refreshHistoryCount() }}
             title="Home"
           >
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="4"/>
-              <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
-            ImagEase <span className="logo-dot" />
+            <span className="logo-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="4"/>
+                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </span>
+            <span className="logo-word">ImagEase</span>
           </button>
           <div className="header-actions">
             <button
@@ -811,101 +819,121 @@ export default function App() {
           <>
         {/* ── Upload screen ── */}
         {!sourceImage && (
+          <>
           <section className="hero-section">
             <div className="hero-copy">
-              <h1 className="hero-title">Resize, Crop &amp;<br /><span>Enhance Images</span></h1>
-              <p className="hero-sub">Made with care, just for you — drop in one photo, and we’ll gently shape every size you need.</p>
+              <h1 className="hero-title">
+                Let one photo
+                <span className="hero-title-line">become many</span>
+              </h1>
+              <p className="hero-sub">
+                Bring your image here. We’ll tend to it gently — cropped, sized, and quietly ready for wherever it needs to go.
+              </p>
             </div>
 
-            <div className="hero-panel">
-              <div
-                className={`upload-zone ${isDragging ? 'dragging' : ''}`}
-                onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={onDrop}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp"
-                  style={{ display: 'none' }} onChange={onFileChange} />
-                <div className="upload-icon-wrap"><UploadIcon /></div>
-                <div className="upload-copy">
-                  <p className="upload-label">Drop your image or <span className="upload-link">browse</span></p>
-                  <p className="upload-hint">JPG · PNG · WEBP</p>
-                </div>
+            <div
+              className={`upload-zone upload-plane ${isDragging ? 'dragging' : ''}`}
+              onDragOver={e => { e.preventDefault(); setIsDragging(true) }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={onDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp"
+                style={{ display: 'none' }} onChange={onFileChange} />
+
+              <div className="upload-stage-art" aria-hidden="true">
+                <span className="upload-frame upload-frame-wide" />
+                <span className="upload-frame upload-frame-portrait" />
+                <span className="upload-frame upload-frame-square" />
               </div>
 
-              <div className="presets-panel">
-                <div className="presets-panel-header">
-                  <span className="presets-panel-title">Output sizes</span>
-                  <span className="presets-panel-count">{presets.length} presets</span>
+              <div className="upload-content">
+                <div className="upload-icon-wrap"><UploadIcon /></div>
+                <div className="upload-copy">
+                  <p className="upload-label">Rest your image here</p>
+                  <p className="upload-hint">JPG · PNG · WEBP</p>
                 </div>
-                <p className="presets-rename-hint">Click a name to rename the output filename.</p>
-                <div className="presets-list">
-                  {presets.map(s => (
-                    <div key={s.id} className="preset-row">
-                      <input
-                        className="preset-row-name-input"
-                        value={s.name}
-                        onChange={(e) => updatePresetName(s.id, e.target.value)}
-                        aria-label={`Rename ${s.id}`}
-                        title="Rename output filename"
-                      />
-                      <span className="preset-row-dim">{s.width} × {s.height}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="presets-panel-footer">
-                  <button
-                    className={`btn btn-ghost btn-sm customize-toggle ${showCustom ? 'active' : ''}`}
-                    onClick={() => setShowCustom(v => !v)}
-                  >
-                    {showCustom ? '▾ Hide custom sizes' : '▸ Customize sizes'}
-                  </button>
-                </div>
-
-                {showCustom && (
-                  <div className="custom-sizes-box">
-                    {customSizes.map(s => (
-                      <div key={s.id} className="custom-row">
-                        <input
-                          className="input-field custom-label"
-                          placeholder="Label (optional)"
-                          value={s.name}
-                          onChange={e => updateCustomSize(s.id, 'name', e.target.value)}
-                        />
-                        <div className="custom-dims">
-                          <input
-                            className="input-field input-num"
-                            placeholder="W"
-                            type="number"
-                            min="1"
-                            value={s.width}
-                            onChange={e => updateCustomSize(s.id, 'width', e.target.value)}
-                          />
-                          <span className="dim-sep">×</span>
-                          <input
-                            className="input-field input-num"
-                            placeholder="H"
-                            type="number"
-                            min="1"
-                            value={s.height}
-                            onChange={e => updateCustomSize(s.id, 'height', e.target.value)}
-                          />
-                        </div>
-                        {customSizes.length > 1 ? (
-                          <button className="btn-remove" onClick={() => removeCustomSize(s.id)} aria-label="Remove size">✕</button>
-                        ) : (
-                          <span className="btn-remove-spacer" aria-hidden="true" />
-                        )}
-                      </div>
-                    ))}
-                    <button className="btn btn-ghost btn-sm" onClick={addCustomSize}>+ Add another size</button>
-                  </div>
-                )}
+                <span className="upload-browse">Choose a photo</span>
               </div>
             </div>
           </section>
+
+          <section className="sizes-section">
+            <div className="sizes-section-header">
+              <div>
+                <h2 className="sizes-section-title">Sizes you’ll need</h2>
+                <p className="sizes-section-sub">Rename any frame so it feels like yours when you download.</p>
+              </div>
+              <span className="presets-panel-count">{presets.length} presets</span>
+            </div>
+
+            <div className="presets-panel">
+              <div className="presets-list">
+                {presets.map(s => (
+                  <div key={s.id} className="preset-row">
+                    <input
+                      className="preset-row-name-input"
+                      value={s.name}
+                      onChange={(e) => updatePresetName(s.id, e.target.value)}
+                      aria-label={`Rename ${s.id}`}
+                      title="Rename output filename"
+                    />
+                    <span className="preset-row-dim">{s.width} × {s.height}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="presets-panel-footer">
+                <button
+                  className={`btn btn-ghost btn-sm customize-toggle ${showCustom ? 'active' : ''}`}
+                  onClick={() => setShowCustom(v => !v)}
+                >
+                  {showCustom ? 'Hide custom sizes' : 'Customize sizes'}
+                </button>
+              </div>
+
+              {showCustom && (
+                <div className="custom-sizes-box">
+                  {customSizes.map(s => (
+                    <div key={s.id} className="custom-row">
+                      <input
+                        className="input-field custom-label"
+                        placeholder="Label (optional)"
+                        value={s.name}
+                        onChange={e => updateCustomSize(s.id, 'name', e.target.value)}
+                      />
+                      <div className="custom-dims">
+                        <input
+                          className="input-field input-num"
+                          placeholder="W"
+                          type="number"
+                          min="1"
+                          value={s.width}
+                          onChange={e => updateCustomSize(s.id, 'width', e.target.value)}
+                        />
+                        <span className="dim-sep">×</span>
+                        <input
+                          className="input-field input-num"
+                          placeholder="H"
+                          type="number"
+                          min="1"
+                          value={s.height}
+                          onChange={e => updateCustomSize(s.id, 'height', e.target.value)}
+                        />
+                      </div>
+                      {customSizes.length > 1 ? (
+                        <button className="btn-remove" onClick={() => removeCustomSize(s.id)} aria-label="Remove size">✕</button>
+                      ) : (
+                        <span className="btn-remove-spacer" aria-hidden="true" />
+                      )}
+                    </div>
+                  ))}
+                  <button className="btn btn-ghost btn-sm" onClick={addCustomSize}>+ Add another size</button>
+                </div>
+              )}
+            </div>
+          </section>
+          </>
         )}
 
         {/* ── Results screen ── */}
