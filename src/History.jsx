@@ -3,6 +3,7 @@ import {
   listHistory,
   deleteHistoryItems,
   clearHistory,
+  setHistoryLocked,
   formatHistoryDate,
   formatFileSize,
 } from './historyStore'
@@ -20,6 +21,23 @@ function TrashIcon() {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  )
+}
+
+function LockIcon({ locked = false }) {
+  if (locked) {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.35" strokeLinecap="round" strokeLinejoin="round" width="15" height="15" aria-hidden="true">
+        <rect x="3.5" y="11" width="17" height="10.5" rx="2" />
+        <path d="M7.5 11V7.2a4.5 4.5 0 0 1 9 0V11" />
+      </svg>
+    )
+  }
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.35" strokeLinecap="round" strokeLinejoin="round" width="15" height="15" aria-hidden="true">
+      <rect x="3.5" y="11" width="17" height="10.5" rx="2" />
+      <path d="M7.5 11V7.2a4.5 4.5 0 0 1 8.8-1.2" />
     </svg>
   )
 }
@@ -60,6 +78,7 @@ function ReuseModal({ item, onReuse, onClose, reusing }) {
               {formatHistoryDate(item.uploadedAt)}
               {item.width ? ` · ${item.width} × ${item.height}` : ''}
               {item.size ? ` · ${formatFileSize(item.size)}` : ''}
+              {item.locked ? ' · Locked' : ''}
             </p>
           </div>
           <button className="modal-close" onClick={onClose} aria-label="Close"><CloseIcon /></button>
@@ -117,6 +136,7 @@ export default function History({ onReuse, onBack }) {
   const [previewItem, setPreviewItem] = useState(null)
   const [reusing, setReusing] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [lockingId, setLockingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null) // { type: 'selected' | 'all' | 'one', ids?: string[] }
 
   const refresh = async () => {
@@ -132,7 +152,11 @@ export default function History({ onReuse, onBack }) {
 
   useEffect(() => { refresh() }, [])
 
-  const allSelected = items.length > 0 && selected.size === items.length
+  const unlockedItems = useMemo(() => items.filter((item) => !item.locked), [items])
+  const lockedCount = items.length - unlockedItems.length
+  const selectableIds = useMemo(() => unlockedItems.map((item) => item.id), [unlockedItems])
+
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id))
   const someSelected = selected.size > 0
 
   const grouped = useMemo(() => {
@@ -159,6 +183,8 @@ export default function History({ onReuse, onBack }) {
   }, [items])
 
   const toggleOne = (id) => {
+    const item = items.find((i) => i.id === id)
+    if (item?.locked) return
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -169,21 +195,48 @@ export default function History({ onReuse, onBack }) {
 
   const toggleAll = () => {
     if (allSelected) setSelected(new Set())
-    else setSelected(new Set(items.map((i) => i.id)))
+    else setSelected(new Set(selectableIds))
   }
 
   const openDeleteSelected = () => {
     if (!someSelected) return
-    setConfirmDelete({ type: 'selected', ids: [...selected] })
+    const ids = [...selected].filter((id) => {
+      const item = items.find((i) => i.id === id)
+      return item && !item.locked
+    })
+    if (!ids.length) return
+    setConfirmDelete({ type: 'selected', ids })
   }
 
   const openDeleteAll = () => {
-    if (!items.length) return
+    if (!unlockedItems.length) return
     setConfirmDelete({ type: 'all' })
   }
 
   const openDeleteOne = (id) => {
+    const item = items.find((i) => i.id === id)
+    if (!item || item.locked) return
     setConfirmDelete({ type: 'one', ids: [id] })
+  }
+
+  const handleToggleLock = async (item) => {
+    if (!item?.id || deleting) return
+    setLockingId(item.id)
+    try {
+      const updated = await setHistoryLocked(item.id, !item.locked)
+      if (!updated) return
+      setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, locked: updated.locked } : row)))
+      if (updated.locked) {
+        setSelected((prev) => {
+          if (!prev.has(item.id)) return prev
+          const next = new Set(prev)
+          next.delete(item.id)
+          return next
+        })
+      }
+    } finally {
+      setLockingId(null)
+    }
   }
 
   const runConfirmedDelete = async () => {
@@ -218,22 +271,28 @@ export default function History({ onReuse, onBack }) {
     ? 1
     : confirmDelete?.type === 'selected'
       ? (confirmDelete.ids?.length || selected.size)
-      : selected.size
+      : unlockedItems.length
 
   const confirmTitle = confirmDelete?.type === 'all'
-    ? 'Delete all history?'
+    ? lockedCount > 0
+      ? 'Delete unlocked history?'
+      : 'Delete all history?'
     : confirmDelete?.type === 'one'
       ? 'Delete this image?'
       : `Delete ${selectedCount} image${selectedCount === 1 ? '' : 's'}?`
 
   const confirmMessage = confirmDelete?.type === 'all'
-    ? 'This will permanently remove every uploaded image from your history on this device. This cannot be undone.'
+    ? lockedCount > 0
+      ? `This will permanently remove ${unlockedItems.length} unlocked image${unlockedItems.length === 1 ? '' : 's'}. ${lockedCount} locked image${lockedCount === 1 ? '' : 's'} will be kept.`
+      : 'This will permanently remove every uploaded image from your history on this device. This cannot be undone.'
     : confirmDelete?.type === 'one'
       ? 'This image will be permanently removed from history on this device. This cannot be undone.'
       : `The selected image${selectedCount === 1 ? '' : 's'} will be permanently removed from history on this device. This cannot be undone.`
 
   const confirmLabel = confirmDelete?.type === 'all'
-    ? 'Delete all'
+    ? lockedCount > 0
+      ? 'Delete unlocked'
+      : 'Delete all'
     : 'Delete'
 
   const removingIds = confirmDelete?.type === 'all'
@@ -253,7 +312,12 @@ export default function History({ onReuse, onBack }) {
       {items.length > 0 && (
         <div className={`history-toolbar ${deleting ? 'is-disabled' : ''}`}>
           <label className="history-check-all">
-            <input type="checkbox" checked={allSelected} onChange={toggleAll} disabled={deleting} />
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={toggleAll}
+              disabled={deleting || selectableIds.length === 0}
+            />
             <span>{allSelected ? 'Unselect all' : 'Select all'}</span>
           </label>
 
@@ -267,8 +331,9 @@ export default function History({ onReuse, onBack }) {
             </button>
             <button
               className="btn btn-ghost btn-sm btn-danger"
-              disabled={deleting}
+              disabled={deleting || unlockedItems.length === 0}
               onClick={openDeleteAll}
+              title={lockedCount > 0 ? `${lockedCount} locked image${lockedCount === 1 ? '' : 's'} will be kept` : 'Delete all'}
             >
               Delete all
             </button>
@@ -292,28 +357,42 @@ export default function History({ onReuse, onBack }) {
               <h2 className="history-group-title">{group.title}</h2>
               <div className="history-grid">
                 {group.items.map((item) => {
+                  const isLocked = Boolean(item.locked)
                   const isChecked = selected.has(item.id)
-                  const isRemoving = deleting && (
+                  const isRemoving = deleting && !isLocked && (
                     confirmDelete?.type === 'all' || removingIds?.has(item.id)
                   )
                   return (
                     <div
                       key={item.id}
-                      className={`history-card ${isChecked ? 'selected' : ''} ${isRemoving ? 'is-removing' : ''}`}
+                      className={`history-card ${isChecked ? 'selected' : ''} ${isLocked ? 'is-locked' : ''} ${isRemoving ? 'is-removing' : ''}`}
                     >
                       <label className="history-card-check" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => toggleOne(item.id)}
-                          disabled={deleting}
+                          disabled={deleting || isLocked}
+                          title={isLocked ? 'Unlock to select for delete' : 'Select'}
                         />
                       </label>
                       <button
                         type="button"
+                        className={`history-card-lock ${isLocked ? 'is-active' : ''}`}
+                        title={isLocked ? 'Unlock image' : 'Lock image'}
+                        disabled={deleting || lockingId === item.id}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleToggleLock(item)
+                        }}
+                      >
+                        <LockIcon locked={isLocked} />
+                      </button>
+                      <button
+                        type="button"
                         className="history-card-delete"
-                        title="Delete this image"
-                        disabled={deleting}
+                        title={isLocked ? 'Unlock to delete' : 'Delete this image'}
+                        disabled={deleting || isLocked}
                         onClick={(e) => {
                           e.stopPropagation()
                           openDeleteOne(item.id)
@@ -327,7 +406,15 @@ export default function History({ onReuse, onBack }) {
                         onClick={() => !deleting && setPreviewItem(item)}
                         disabled={deleting}
                       >
-                        <HistoryThumb item={item} />
+                        <div className="history-thumb-wrap">
+                          <HistoryThumb item={item} />
+                          {isLocked && (
+                            <span className="history-locked-badge" title="Protected from delete">
+                              <LockIcon locked />
+                              Locked
+                            </span>
+                          )}
+                        </div>
                         <div className="history-card-info">
                           <span className="history-card-name" title={item.name}>{item.name}</span>
                           <span className="history-card-date">{formatHistoryDate(item.uploadedAt)}</span>

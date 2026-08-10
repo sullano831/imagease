@@ -1,6 +1,19 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import JSZip from 'jszip'
-import { cropCoverWithOffset, loadImage, downloadDataURL, dataURLtoBlob, enhanceImage, MIME_MAP, EXT_MAP } from './imageUtils'
+import {
+  cropCoverWithOffset,
+  loadImage,
+  downloadDataURL,
+  dataURLtoBlob,
+  enhanceImage,
+  dataURLSizeBytes,
+  formatFileSize,
+  MIME_MAP,
+  EXT_MAP,
+  MIN_EXPORT_QUALITY,
+  MAX_EXPORT_QUALITY,
+  DEFAULT_EXPORT_QUALITY,
+} from './imageUtils'
 import { saveToHistory, listHistory } from './historyStore'
 import { searchLocations, geotagImage, geotaggedFilename } from './geotag'
 import History from './History'
@@ -119,7 +132,7 @@ function HistoryIcon() {
 const MIN_CROP_ZOOM = 1
 const MAX_CROP_ZOOM = 3
 
-function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, currentOffset, currentZoom = 1, onApply, onCancel }) {
+function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, quality = DEFAULT_EXPORT_QUALITY, currentOffset, currentZoom = 1, onApply, onCancel }) {
   const displayScale = Math.min(EDITOR_MAX / targetW, EDITOR_MAX / targetH, 1)
   const frameW = Math.round(targetW * displayScale)
   const frameH = Math.round(targetH * displayScale)
@@ -211,7 +224,7 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
     const centerY = (targetH - sourceImg.naturalHeight * coverScale) / 2
     const deltaX = realOffsetX - centerX
     const deltaY = realOffsetY - centerY
-    const dataURL = cropCoverWithOffset(sourceImg, targetW, targetH, deltaX, deltaY, mimeType, 0.92, zoom)
+    const dataURL = cropCoverWithOffset(sourceImg, targetW, targetH, deltaX, deltaY, mimeType, quality, zoom)
     onApply(dataURL, { x: deltaX, y: deltaY }, zoom)
   }
 
@@ -295,7 +308,7 @@ function CropEditor({ sourceImg, sourceImgSrc, targetW, targetH, mimeType, curre
 
 // ── Image Card ───────────────────────────────────────────────────
 
-function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, onCropApplied, onRename, geoLocation, onGeotagDownload }) {
+function ImageCard({ result, format, mime, quality, sourceImg, sourceImgSrc, onEnhanced, onCropApplied, onRename, geoLocation, onGeotagDownload }) {
   const [enhancing, setEnhancing] = useState(false)
   const [showEnhanced, setShowEnhanced] = useState(Boolean(result.enhancedURL))
   const [showOriginal, setShowOriginal] = useState(false)
@@ -310,6 +323,8 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
   const isEnhanced = Boolean(result.enhancedURL) && showEnhanced
   const { tw, th } = thumbDimensions(result.width, result.height)
   const activeURL = isEnhanced && !showOriginal ? result.enhancedURL : result.dataURL
+  const fileBytes = dataURLSizeBytes(activeURL)
+  const fileSizeLabel = formatFileSize(fileBytes)
   const safeName = sanitizeFilename(result.name, result.id)
   const filename = `${safeName}${isEnhanced ? '-enhanced' : ''}.${EXT_MAP[format]}`
 
@@ -320,7 +335,7 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
     }
     setEnhancing(true)
     try {
-      const enhanced = await enhanceImage(result.dataURL, mime)
+      const enhanced = await enhanceImage(result.dataURL, mime, quality)
       onEnhanced(result.id, enhanced)
       setShowEnhanced(true)
     } finally {
@@ -381,6 +396,14 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
               title="Rename file"
             />
             <span className="card-dims">{result.width} × {result.height} px</span>
+            {fileSizeLabel && (
+              <span
+                className="card-size"
+                title={`${fileBytes.toLocaleString()} bytes`}
+              >
+                {fileSizeLabel}
+              </span>
+            )}
           </div>
 
           <div className="card-actions">
@@ -405,7 +428,7 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
             <button
               className="btn btn-ghost btn-sm btn-download"
               onClick={() => downloadDataURL(activeURL, filename)}
-              title="Download"
+              title={fileSizeLabel ? `Download (${fileSizeLabel})` : 'Download'}
             >
               <DownloadIcon /> Download
             </button>
@@ -430,6 +453,7 @@ function ImageCard({ result, format, mime, sourceImg, sourceImgSrc, onEnhanced, 
           targetW={result.width}
           targetH={result.height}
           mimeType={mime}
+          quality={quality}
           currentOffset={result.cropOffset || { x: 0, y: 0 }}
           currentZoom={result.cropZoom || 1}
           onApply={handleCropApply}
@@ -450,6 +474,7 @@ export default function App() {
   const [presets, setPresets] = useState(() => DEFAULT_PRESETS.map((p) => ({ ...p })))
   const [customSizes, setCustomSizes] = useState([{ id: Date.now(), name: '', width: '', height: '' }])
   const [format, setFormat] = useState('webp')
+  const [quality, setQuality] = useState(DEFAULT_EXPORT_QUALITY)
   const [processing, setProcessing] = useState(false)
   const [enhancingAll, setEnhancingAll] = useState(false)
   const [showCustom, setShowCustom] = useState(false)
@@ -498,13 +523,13 @@ export default function App() {
     ]
   }, [presets])
 
-  const runProcess = useCallback((img, sizes, m) =>
+  const runProcess = useCallback((img, sizes, m, q = DEFAULT_EXPORT_QUALITY) =>
     sizes.map(size => ({
       id: size.id || size.name,
       name: size.name,
       width: size.width,
       height: size.height,
-      dataURL: cropCoverWithOffset(img, size.width, size.height, 0, 0, m, 0.92, 1),
+      dataURL: cropCoverWithOffset(img, size.width, size.height, 0, 0, m, q, 1),
       cropOffset: { x: 0, y: 0 },
       cropZoom: 1,
       enhancedURL: null,
@@ -531,7 +556,7 @@ export default function App() {
       const img = await loadImage(file)
       const src = URL.createObjectURL(file)
       setSourceImage({ file, img, src })
-      setResults(runProcess(img, buildSizes(customSizes), MIME_MAP[format]))
+      setResults(runProcess(img, buildSizes(customSizes), MIME_MAP[format], quality))
       if (saveHistory) {
         try {
           await saveToHistory(file)
@@ -543,7 +568,7 @@ export default function App() {
     } finally {
       setProcessing(false)
     }
-  }, [customSizes, format, buildSizes, runProcess, refreshHistoryCount])
+  }, [customSizes, format, quality, buildSizes, runProcess, refreshHistoryCount])
 
   const handleFile = useCallback(async (file) => {
     await startWithFile(file, { saveHistory: true })
@@ -561,7 +586,7 @@ export default function App() {
   const reprocess = () => {
     if (!sourceImage) return
     setProcessing(true)
-    setResults(runProcess(sourceImage.img, buildSizes(customSizes), mime))
+    setResults(runProcess(sourceImage.img, buildSizes(customSizes), mime, quality))
     setProcessing(false)
   }
 
@@ -569,7 +594,16 @@ export default function App() {
     setFormat(newFmt)
     if (!sourceImage) return
     setProcessing(true)
-    setResults(runProcess(sourceImage.img, buildSizes(customSizes), MIME_MAP[newFmt]))
+    setResults(runProcess(sourceImage.img, buildSizes(customSizes), MIME_MAP[newFmt], quality))
+    setProcessing(false)
+  }
+
+  const handleQualityChange = (nextQuality) => {
+    const q = Math.max(MIN_EXPORT_QUALITY, Math.min(MAX_EXPORT_QUALITY, Number(nextQuality) || DEFAULT_EXPORT_QUALITY))
+    setQuality(q)
+    if (!sourceImage) return
+    setProcessing(true)
+    setResults(runProcess(sourceImage.img, buildSizes(customSizes), mime, q))
     setProcessing(false)
   }
 
@@ -589,7 +623,7 @@ export default function App() {
       // Process one-by-one so the UI can update and large images don't freeze the tab
       for (const r of results) {
         if (r.enhancedURL) continue
-        const enhancedURL = await enhanceImage(r.dataURL, mime)
+        const enhancedURL = await enhanceImage(r.dataURL, mime, quality)
         setResults(prev => prev.map(item =>
           item.id === r.id ? { ...item, enhancedURL } : item
         ))
@@ -891,14 +925,46 @@ export default function App() {
 
             {/* Controls */}
             <div className="controls-bar">
-              <div className="format-selector">
-                <label className="ctrl-label">Output format</label>
-                <div className="format-pills">
-                  {['webp', 'png', 'jpeg'].map(f => (
-                    <button key={f} className={`format-pill ${format === f ? 'active' : ''}`} onClick={() => handleFormatChange(f)}>
-                      {f.toUpperCase()}
-                    </button>
-                  ))}
+              <div className="controls-left">
+                <div className="format-selector">
+                  <label className="ctrl-label">Output format</label>
+                  <div className="format-pills">
+                    {['webp', 'png', 'jpeg'].map(f => (
+                      <button key={f} className={`format-pill ${format === f ? 'active' : ''}`} onClick={() => handleFormatChange(f)}>
+                        {f.toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={`quality-selector ${format === 'png' ? 'is-disabled' : ''}`}>
+                  <label className="ctrl-label" htmlFor="quality-slider">
+                    Quality
+                    <span className="quality-value">
+                      {format === 'png'
+                        ? 'N/A (PNG)'
+                        : quality <= MIN_EXPORT_QUALITY + 0.001
+                          ? '0%'
+                          : `${Math.round(quality * 100)}%`}
+                    </span>
+                  </label>
+                  <div className="quality-row">
+                    <span className="quality-hint">Low</span>
+                    <input
+                      id="quality-slider"
+                      className="quality-slider"
+                      type="range"
+                      min={MIN_EXPORT_QUALITY}
+                      max={MAX_EXPORT_QUALITY}
+                      step="0.01"
+                      value={quality}
+                      disabled={format === 'png'}
+                      onChange={(e) => handleQualityChange(e.target.value)}
+                      aria-label="Output quality"
+                      title={format === 'png' ? 'PNG is lossless — quality does not apply' : 'Lower quality reduces file size. Lowest aims for ~10 KB.'}
+                    />
+                    <span className="quality-hint">High</span>
+                  </div>
                 </div>
               </div>
 
@@ -1100,6 +1166,7 @@ export default function App() {
                     result={r}
                     format={format}
                     mime={mime}
+                    quality={quality}
                     sourceImg={sourceImage?.img}
                     sourceImgSrc={sourceImage?.src}
                     onEnhanced={handleEnhanced}

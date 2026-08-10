@@ -109,6 +109,7 @@ export async function saveToHistory(file) {
     width: 0,
     height: 0,
     uploadedAt: Date.now(),
+    locked: false,
     blob,
     thumbnail,
   }
@@ -138,12 +139,17 @@ export async function saveToHistory(file) {
   const tx = db.transaction(STORE, 'readwrite')
   tx.objectStore(STORE).put(entry)
 
-  // Prune oldest if over limit
+  // Prune oldest unlocked items if over limit (never prune locked)
   const all = existing.concat(entry).sort((a, b) => b.uploadedAt - a.uploadedAt)
   if (all.length > MAX_ITEMS) {
-    const toRemove = all.slice(MAX_ITEMS)
-    for (const item of toRemove) {
+    const unlockedOldest = all
+      .filter((item) => !item.locked)
+      .reverse()
+    let overflow = all.length - MAX_ITEMS
+    for (const item of unlockedOldest) {
+      if (overflow <= 0) break
       tx.objectStore(STORE).delete(item.id)
+      overflow -= 1
     }
   }
 
@@ -151,20 +157,93 @@ export async function saveToHistory(file) {
   return entry
 }
 
-export async function deleteHistoryItems(ids) {
-  if (!ids?.length) return
+/** Lock or unlock a history item so it can't be deleted while locked. */
+export async function setHistoryLocked(id, locked) {
+  if (!id) return null
   const db = await openDB()
-  const tx = db.transaction(STORE, 'readwrite')
-  const store = tx.objectStore(STORE)
-  for (const id of ids) store.delete(id)
-  await txDone(tx)
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    const store = tx.objectStore(STORE)
+    let updated = null
+    const getReq = store.get(id)
+    getReq.onsuccess = () => {
+      const item = getReq.result
+      if (!item) return
+      item.locked = Boolean(locked)
+      updated = item
+      store.put(item)
+    }
+    getReq.onerror = () => reject(getReq.error)
+    tx.oncomplete = () => resolve(updated)
+    tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error || new Error('Transaction aborted'))
+  })
 }
 
+/** Delete history items by id. Locked items are skipped. */
+export async function deleteHistoryItems(ids) {
+  if (!ids?.length) return { deleted: 0, skippedLocked: 0 }
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    const store = tx.objectStore(STORE)
+    const result = { deleted: 0, skippedLocked: 0 }
+    let pending = ids.length
+
+    const finishOne = () => {
+      pending -= 1
+    }
+
+    for (const id of ids) {
+      const getReq = store.get(id)
+      getReq.onsuccess = () => {
+        const item = getReq.result
+        if (!item) {
+          finishOne()
+          return
+        }
+        if (item.locked) {
+          result.skippedLocked += 1
+          finishOne()
+          return
+        }
+        store.delete(id)
+        result.deleted += 1
+        finishOne()
+      }
+      getReq.onerror = () => reject(getReq.error)
+    }
+
+    tx.oncomplete = () => resolve(result)
+    tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error || new Error('Transaction aborted'))
+  })
+}
+
+/** Clear unlocked history only. Locked images are kept. */
 export async function clearHistory() {
   const db = await openDB()
-  const tx = db.transaction(STORE, 'readwrite')
-  tx.objectStore(STORE).clear()
-  await txDone(tx)
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    const store = tx.objectStore(STORE)
+    const result = { deleted: 0, skippedLocked: 0 }
+    const getAllReq = store.getAll()
+    getAllReq.onsuccess = () => {
+      const all = getAllReq.result || []
+      for (const item of all) {
+        if (item.locked) {
+          result.skippedLocked += 1
+          continue
+        }
+        store.delete(item.id)
+        result.deleted += 1
+      }
+    }
+    getAllReq.onerror = () => reject(getAllReq.error)
+    tx.oncomplete = () => resolve(result)
+    tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error || new Error('Transaction aborted'))
+  })
 }
 
 /** Format uploadedAt for display. */

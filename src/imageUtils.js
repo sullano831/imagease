@@ -1,7 +1,75 @@
+/** Lowest quality step that still aims for ~10 KB output (jpeg/webp). */
+export const MIN_EXPORT_QUALITY = 0.05
+export const MAX_EXPORT_QUALITY = 1
+export const DEFAULT_EXPORT_QUALITY = 0.92
+/** Soft floor for the lowest quality setting (~10 KB). */
+export const MIN_TARGET_BYTES = 10 * 1024
+
+/** Approximate decoded byte size of a data URL (what you download). */
+export function dataURLSizeBytes(dataURL) {
+  if (!dataURL || typeof dataURL !== 'string') return 0
+  const comma = dataURL.indexOf(',')
+  if (comma < 0) return 0
+  const header = dataURL.slice(0, comma)
+  const data = dataURL.slice(comma + 1)
+  if (header.includes(';base64')) {
+    const padding = data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0
+    return Math.max(0, Math.floor((data.length * 3) / 4) - padding)
+  }
+  try {
+    return new TextEncoder().encode(decodeURIComponent(data)).length
+  } catch {
+    return data.length
+  }
+}
+
+/** Format bytes for UI with precise KB decimals (matches downloaded file size). */
+export function formatFileSize(bytes) {
+  if (!bytes && bytes !== 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+/**
+ * Encode a canvas to a data URL.
+ * At the minimum quality setting for jpeg/webp, binary-searches toward ~10 KB.
+ * PNG ignores quality.
+ */
+export function encodeCanvas(canvas, mimeType = 'image/webp', quality = DEFAULT_EXPORT_QUALITY) {
+  if (mimeType === 'image/png') return canvas.toDataURL(mimeType)
+
+  const q = Math.max(MIN_EXPORT_QUALITY, Math.min(MAX_EXPORT_QUALITY, Number(quality) || DEFAULT_EXPORT_QUALITY))
+
+  // Lowest setting: get as close as possible to ~10 KB (without going much lower when avoidable)
+  if (q <= MIN_EXPORT_QUALITY + 0.001) {
+    let lo = 0.01
+    let hi = 0.92
+    let best = canvas.toDataURL(mimeType, lo)
+    let bestDiff = Math.abs(dataURLSizeBytes(best) - MIN_TARGET_BYTES)
+
+    for (let i = 0; i < 10; i++) {
+      const mid = (lo + hi) / 2
+      const url = canvas.toDataURL(mimeType, mid)
+      const size = dataURLSizeBytes(url)
+      const diff = Math.abs(size - MIN_TARGET_BYTES)
+      if (diff < bestDiff) {
+        best = url
+        bestDiff = diff
+      }
+      if (size > MIN_TARGET_BYTES) hi = mid
+      else lo = mid
+    }
+    return best
+  }
+
+  return canvas.toDataURL(mimeType, q)
+}
+
 /**
  * Crops and resizes an image using object-fit: cover logic (centered crop).
  */
-export function cropCover(img, targetW, targetH, mimeType = 'image/webp', quality = 0.92) {
+export function cropCover(img, targetW, targetH, mimeType = 'image/webp', quality = DEFAULT_EXPORT_QUALITY) {
   return cropCoverWithOffset(img, targetW, targetH, 0, 0, mimeType, quality)
 }
 
@@ -18,7 +86,7 @@ export function cropCoverWithOffset(
   offsetX,
   offsetY,
   mimeType = 'image/webp',
-  quality = 0.92,
+  quality = DEFAULT_EXPORT_QUALITY,
   zoom = 1,
 ) {
   const canvas = document.createElement('canvas')
@@ -42,7 +110,7 @@ export function cropCoverWithOffset(
   const y = Math.max(targetH - scaledH, Math.min(0, centerY + offsetY))
 
   ctx.drawImage(img, x, y, scaledW, scaledH)
-  return canvas.toDataURL(mimeType, quality)
+  return encodeCanvas(canvas, mimeType, quality)
 }
 
 // ── Enhancement helpers ──────────────────────────────────────────
@@ -94,9 +162,10 @@ function boxBlur(data, w, h, radius) {
  *
  * @param {string} dataURL   — input data URL
  * @param {string} mimeType  — output mime type
+ * @param {number} quality   — encoder quality (jpeg/webp); ignored by PNG
  * @returns {Promise<string>} enhanced data URL
  */
-export function enhanceImage(dataURL, mimeType = 'image/webp') {
+export function enhanceImage(dataURL, mimeType = 'image/webp', quality = DEFAULT_EXPORT_QUALITY) {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => {
@@ -159,7 +228,7 @@ export function enhanceImage(dataURL, mimeType = 'image/webp') {
           }
 
           ctx.putImageData(new ImageData(result, w, h), 0, 0)
-          resolve(canvas.toDataURL(mimeType, 0.95))
+          resolve(encodeCanvas(canvas, mimeType, quality))
         } catch (err) {
           reject(err)
         }

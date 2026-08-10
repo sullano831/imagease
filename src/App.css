@@ -520,10 +520,13 @@ body {
 
 /* ── Controls bar ────────────────────────────────────────────── */
 .controls-bar { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+.controls-left {
+  display: flex; align-items: flex-end; flex-wrap: wrap; gap: 1.25rem 1.75rem;
+}
 .ctrl-label {
   font-size: 0.7rem; font-weight: 600; letter-spacing: 0.09em;
   text-transform: uppercase; color: var(--text-tertiary);
-  margin-bottom: 0.45rem; display: block;
+  margin-bottom: 0.45rem; display: flex; align-items: center; gap: 0.5rem;
 }
 .format-pills { display: flex; gap: 0.3rem; }
 .format-pill {
@@ -536,6 +539,34 @@ body {
 }
 .format-pill:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .format-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: var(--shadow-accent); }
+
+.quality-selector { min-width: min(280px, 100%); }
+.quality-selector.is-disabled { opacity: 0.55; }
+.quality-value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--accent);
+  font-weight: 700;
+}
+.quality-row {
+  display: flex; align-items: center; gap: 0.55rem;
+}
+.quality-hint {
+  font-size: 0.68rem;
+  color: var(--text-tertiary);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.quality-slider {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.quality-slider:disabled { cursor: not-allowed; }
 
 /* ── Results grid ────────────────────────────────────────────── */
 .results-grid {
@@ -598,6 +629,14 @@ body {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .card-dims { display: block; color: var(--text-tertiary); font-size: 0.75rem; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+.card-size {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── Enhance button ──────────────────────────────────────────── */
 .btn-enhance {
@@ -1177,6 +1216,10 @@ body {
   box-shadow: 0 0 0 2px var(--accent-soft), var(--shadow-sm);
 }
 
+.history-card.is-locked {
+  border-color: color-mix(in srgb, #ca8a04 35%, var(--glass-border));
+}
+
 .history-card-check {
   position: absolute;
   top: 0.55rem;
@@ -1193,44 +1236,135 @@ body {
   cursor: pointer;
 }
 
+.history-card-lock,
 .history-card-delete {
   position: absolute;
   top: 0.55rem;
-  right: 0.55rem;
   z-index: 2;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid var(--glass-border);
-  background: var(--glass-strong);
-  color: var(--text-secondary);
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  color: #334155;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   opacity: 0;
   transform: translateY(-2px);
-  transition: opacity 0.15s, background 0.15s, color 0.15s, transform 0.15s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.10);
+  transition: opacity 0.15s, background 0.15s, color 0.15s, transform 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
+.history-card-lock { right: 2.7rem; }
+.history-card-delete { right: 0.55rem; }
+
+.history-card:hover .history-card-lock,
 .history-card:hover .history-card-delete,
-.history-card-delete:focus-visible {
+.history-card-lock:focus-visible,
+.history-card-delete:focus-visible,
+.history-card-lock.is-active {
   opacity: 1;
   transform: translateY(0);
 }
 
-.history-card-delete:hover {
-  background: rgba(220, 38, 38, 0.12);
-  border-color: rgba(220, 38, 38, 0.3);
-  color: #dc2626;
+.history-card-lock:hover {
+  background: #f8fafc;
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #0f172a;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.10), 0 6px 16px rgba(15, 23, 42, 0.12);
 }
 
+.history-card-lock.is-active {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #f8fafc;
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.18), 0 6px 16px rgba(15, 23, 42, 0.2);
+}
+
+.history-card-lock.is-active:hover {
+  background: #1e293b;
+  border-color: #1e293b;
+  color: #ffffff;
+}
+
+.history-card-delete:hover {
+  background: #fff5f5;
+  border-color: rgba(220, 38, 38, 0.28);
+  color: #dc2626;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.10), 0 6px 16px rgba(15, 23, 42, 0.10);
+}
+
+.history-card-lock:disabled,
 .history-card-delete:disabled {
-  opacity: 0.4;
+  opacity: 0.45;
   cursor: not-allowed;
+  box-shadow: none;
+}
+
+.history-card.is-locked .history-card-delete:disabled {
+  opacity: 0.4;
+}
+
+.app.dark .history-card-lock,
+.app.dark .history-card-delete {
+  background: #111827;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 14px rgba(0, 0, 0, 0.28);
+}
+
+.app.dark .history-card-lock:hover {
+  background: #1f2937;
+  color: #ffffff;
+}
+
+.app.dark .history-card-lock.is-active {
+  background: #f8fafc;
+  border-color: #f8fafc;
+  color: #0f172a;
+}
+
+.app.dark .history-card-lock.is-active:hover {
+  background: #ffffff;
+  color: #020617;
+}
+
+.app.dark .history-card-delete:hover {
+  background: rgba(127, 29, 29, 0.55);
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fecaca;
+}
+
+.history-locked-badge {
+  position: absolute;
+  left: 0.55rem;
+  bottom: 0.55rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.24rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.25);
+}
+
+.app.dark .history-locked-badge {
+  background: rgba(248, 250, 252, 0.94);
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.08);
 }
 
 @media (hover: none) {
+  .history-card-lock,
   .history-card-delete {
     opacity: 1;
     transform: none;
@@ -1247,6 +1381,14 @@ body {
   cursor: pointer;
   color: inherit;
   font-family: inherit;
+}
+
+.history-card-btn:disabled {
+  cursor: not-allowed;
+}
+
+.history-thumb-wrap {
+  position: relative;
 }
 
 .history-thumb {
@@ -1759,6 +1901,8 @@ body {
   .presets-list { grid-template-columns: 1fr; }
   .presets-panel { padding: 1rem; }
   .controls-bar { flex-direction: column; align-items: flex-start; }
+  .controls-left { width: 100%; }
+  .quality-selector { min-width: 0; width: 100%; max-width: 360px; }
   .results-grid { grid-template-columns: 1fr 1fr; }
   .results-topbar { flex-direction: column; align-items: flex-start; }
   .custom-row {
