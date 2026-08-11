@@ -15,8 +15,9 @@ import {
   DEFAULT_EXPORT_QUALITY,
 } from './imageUtils'
 import { saveToHistory, listHistory } from './historyStore'
-import { searchLocations, geotagImage, geotaggedFilename } from './geotag'
+import { searchLocations, geotagImage, geotaggedFilename, reverseGeocode } from './geotag'
 import History from './History'
+import GeoMapPicker, { ManualCoordsModal } from './GeoMapPicker'
 import './App.css'
 
 const DEFAULT_PRESETS = [
@@ -487,6 +488,8 @@ export default function App() {
   const [geoError, setGeoError] = useState('')
   const [geoZipBusy, setGeoZipBusy] = useState(false)
   const [showGeotag, setShowGeotag] = useState(false)
+  const [showManualCoords, setShowManualCoords] = useState(false)
+  const [manualCoordsBusy, setManualCoordsBusy] = useState(false)
   const [zipModal, setZipModal] = useState(null) // null | { mode: 'all' | 'geotagged' }
   const [zipFolderName, setZipFolderName] = useState('')
   const fileInputRef = useRef(null)
@@ -748,6 +751,27 @@ export default function App() {
     downloadDataURL(tagged, geotaggedFilename(baseName, format))
   }, [geoSelected, format])
 
+  const applyGeoPlace = useCallback((place) => {
+    if (!place) return
+    setGeoSelected(place)
+    setGeoQuery(place.label || `${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}`)
+    setGeoResults([])
+    setGeoError('')
+  }, [])
+
+  const handleManualCoordsConfirm = useCallback(async (lat, lng) => {
+    setManualCoordsBusy(true)
+    try {
+      const place = await reverseGeocode(lat, lng)
+      if (place) applyGeoPlace(place)
+      setShowManualCoords(false)
+    } catch (err) {
+      setGeoError(err.message || 'Could not set those coordinates.')
+    } finally {
+      setManualCoordsBusy(false)
+    }
+  }, [applyGeoPlace])
+
   const addCustomSize = () => setCustomSizes(p => [...p, { id: Date.now(), name: '', width: '', height: '' }])
   const removeCustomSize = (id) => setCustomSizes(p => p.filter(s => s.id !== id))
   const updateCustomSize = (id, field, value) => setCustomSizes(p => p.map(s => s.id === id ? { ...s, [field]: value } : s))
@@ -759,6 +783,7 @@ export default function App() {
     setGeoQuery('')
     setGeoError('')
     setShowGeotag(false)
+    setShowManualCoords(false)
   }
 
   return (
@@ -1041,7 +1066,7 @@ export default function App() {
                 {showGeotag && (
                   <div className="geotag-box">
                     <p className="geotag-help">
-                      Optional. Location search uses a free service, so not every place may appear.
+                      Search a place, click the map, or enter coordinates manually if the place can’t be found.
                     </p>
                     <div className="geotag-search-row">
                       <input
@@ -1075,12 +1100,7 @@ export default function App() {
                             key={place.id}
                             type="button"
                             className="geotag-result"
-                            onClick={() => {
-                              setGeoSelected(place)
-                              setGeoQuery(place.label)
-                              setGeoResults([])
-                              setGeoError('')
-                            }}
+                            onClick={() => applyGeoPlace(place)}
                           >
                             <PinIcon size={14} />
                             <span className="geotag-result-text">
@@ -1093,6 +1113,12 @@ export default function App() {
                         ))}
                       </div>
                     )}
+
+                    <GeoMapPicker
+                      selected={geoSelected}
+                      onSelect={applyGeoPlace}
+                      onManualOpen={() => setShowManualCoords(true)}
+                    />
 
                     {geoSelected && (
                       <div className="geotag-selected">
@@ -1211,6 +1237,16 @@ export default function App() {
           </>
         )}
       </main>
+
+      {showManualCoords && (
+        <ManualCoordsModal
+          initialLat={geoSelected?.lat ?? ''}
+          initialLng={geoSelected?.lng ?? ''}
+          onClose={() => !manualCoordsBusy && setShowManualCoords(false)}
+          onConfirm={handleManualCoordsConfirm}
+          busy={manualCoordsBusy}
+        />
+      )}
 
       {zipModal && (
         <div className="modal-backdrop" onClick={closeZipModal}>

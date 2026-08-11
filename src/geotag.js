@@ -547,6 +547,97 @@ export async function searchLocations(query) {
     })
 }
 
+/** Validate and clamp latitude / longitude into usable GPS numbers. */
+export function normalizeCoords(lat, lng) {
+  const latitude = Number(lat)
+  const longitude = Number(lng)
+  if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+    return { ok: false, error: 'Enter valid numbers for latitude and longitude.' }
+  }
+  if (latitude < -90 || latitude > 90) {
+    return { ok: false, error: 'Latitude must be between -90 and 90.' }
+  }
+  if (longitude < -180 || longitude > 180) {
+    return { ok: false, error: 'Longitude must be between -180 and 180.' }
+  }
+  return {
+    ok: true,
+    lat: latitude,
+    lng: longitude,
+    label: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+  }
+}
+
+/**
+ * Best-effort reverse geocode for a map/manual pin.
+ * Falls back to coordinate label if Photon has nothing.
+ */
+export async function reverseGeocode(lat, lng) {
+  const normalized = normalizeCoords(lat, lng)
+  if (!normalized.ok) return null
+
+  try {
+    const url = new URL('https://photon.komoot.io/reverse')
+    url.searchParams.set('lat', String(normalized.lat))
+    url.searchParams.set('lon', String(normalized.lng))
+    url.searchParams.set('limit', '1')
+    url.searchParams.set('lang', 'en')
+
+    const res = await fetch(url.toString())
+    if (!res.ok) {
+      return {
+        id: `manual-${normalized.lat.toFixed(5)}-${normalized.lng.toFixed(5)}`,
+        title: 'Pinned location',
+        detail: normalized.label,
+        label: normalized.label,
+        postcode: '',
+        lat: normalized.lat,
+        lng: normalized.lng,
+        source: 'manual',
+      }
+    }
+
+    const data = await res.json()
+    const feature = data?.features?.[0]
+    if (!feature) {
+      return {
+        id: `manual-${normalized.lat.toFixed(5)}-${normalized.lng.toFixed(5)}`,
+        title: 'Pinned location',
+        detail: normalized.label,
+        label: normalized.label,
+        postcode: '',
+        lat: normalized.lat,
+        lng: normalized.lng,
+        source: 'manual',
+      }
+    }
+
+    const p = feature.properties || {}
+    const formatted = formatPhotonPlace(p, 0)
+    return {
+      id: String(p.osm_id != null ? `${p.osm_type || 'n'}-${p.osm_id}` : `rev-${normalized.lat}-${normalized.lng}`),
+      title: formatted.title,
+      detail: formatted.detail,
+      label: formatted.label,
+      postcode: formatted.postcode,
+      lat: normalized.lat,
+      lng: normalized.lng,
+      source: 'reverse',
+    }
+  } catch {
+    return {
+      id: `manual-${normalized.lat.toFixed(5)}-${normalized.lng.toFixed(5)}`,
+      title: 'Pinned location',
+      detail: normalized.label,
+      label: normalized.label,
+      postcode: '',
+      lat: normalized.lat,
+      lng: normalized.lng,
+      source: 'manual',
+    }
+  }
+}
+
 function toJpegDataURL(dataURL, quality = 0.92) {
   return new Promise((resolve, reject) => {
     const img = new Image()

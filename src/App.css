@@ -1224,6 +1224,79 @@ body {
 .geotag-input { flex: 1; min-width: 0; width: 100%; }
 .geotag-search-row .btn { flex-shrink: 0; }
 .geotag-error { margin: 0; font-size: 0.82rem; color: #dc2626; }
+
+.geo-map-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: 100%;
+}
+.geo-map-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+.geo-map-hint {
+  font-size: 0.78rem;
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+.geo-map {
+  width: 100%;
+  height: 280px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--glass-border);
+  overflow: hidden;
+  background: var(--surface-muted);
+  z-index: 1;
+}
+.geo-map .leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-ui);
+}
+.geo-map .leaflet-control-attribution {
+  font-size: 0.65rem;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.manual-coords-modal {
+  align-items: stretch;
+  text-align: left;
+  max-width: 400px;
+  gap: 0.45rem;
+}
+.manual-coords-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+.manual-coords-header .confirm-modal-title {
+  text-align: left;
+  font-size: 1.15rem;
+}
+.manual-coords-label {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.manual-coords-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  flex: none;
+}
+.manual-coords-modal .confirm-modal-actions {
+  margin-top: 0.85rem;
+  justify-content: flex-end;
+}
+
 .geotag-results {
   display: flex; flex-direction: column; gap: 0.35rem; max-height: 220px; overflow-y: auto;
 }
@@ -1286,6 +1359,9 @@ body {
   .custom-row .btn-remove-spacer { grid-column: 2; grid-row: 1; }
   .geotag-search-row { flex-wrap: wrap; }
   .geotag-search-row .btn { width: 100%; justify-content: center; }
+  .geo-map { height: 240px; }
+  .geo-map-toolbar { flex-direction: column; align-items: stretch; }
+  .geo-map-toolbar .btn { width: 100%; justify-content: center; }
 }
 
 @media (max-width: 420px) {
