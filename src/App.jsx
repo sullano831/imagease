@@ -416,21 +416,25 @@ function ImageCard({ result, format, mime, quality, sourceImg, sourceImgSrc, onE
               <button className="btn btn-crop btn-sm" onClick={() => setShowCropEditor(true)} title="Adjust crop position">
                 <CropIcon /> Adjust
               </button>
-              <div className="card-action-group">
-                <button
-                  className={`btn btn-enhance btn-sm ${isEnhanced ? 'btn-active-mode' : ''}`}
-                  onClick={handleEnhance}
-                  disabled={enhancing}
-                  title="Sharpen & enhance"
-                >
-                  {enhancing ? <><span className="mini-spinner" />…</> : <><SparkleIcon />Enhance</>}
-                </button>
-                {isEnhanced && (
-                  <button className="btn btn-ghost btn-sm btn-reset" onClick={() => setShowEnhanced(false)} title="Reset enhance">
-                    ↩
-                  </button>
+            <div className="card-action-group">
+              <button
+                className={`btn btn-enhance btn-sm ${isEnhanced ? 'btn-active-mode' : ''}`}
+                onClick={handleEnhance}
+                disabled={enhancing}
+                title="Sharpen & enhance"
+              >
+                {enhancing ? (
+                  <span className="btn-label"><span className="mini-spinner" />…</span>
+                ) : (
+                  <span className="btn-label"><SparkleIcon />Enhance</span>
                 )}
-              </div>
+              </button>
+              {isEnhanced && (
+                <button className="btn btn-ghost btn-sm btn-reset" onClick={() => setShowEnhanced(false)} title="Reset enhance">
+                  ↩
+                </button>
+              )}
+            </div>
               <button
                 className="btn btn-ghost btn-sm btn-download"
                 onClick={() => downloadDataURL(activeURL, filename)}
