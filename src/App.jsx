@@ -372,77 +372,83 @@ function ImageCard({ result, format, mime, quality, sourceImg, sourceImgSrc, onE
 
       {!showCropEditor && (
         <>
-          <div className="thumb-wrapper" style={{ width: tw, height: th }}>
-            <img src={activeURL} alt={safeName} style={{ width: tw, height: th, display: 'block' }} />
-            {isEnhanced && (
-              <button
-                className="compare-btn"
-                onMouseDown={() => setShowOriginal(true)}
-                onMouseUp={() => setShowOriginal(false)}
-                onMouseLeave={() => setShowOriginal(false)}
-                onTouchStart={() => setShowOriginal(true)}
-                onTouchEnd={() => setShowOriginal(false)}
-              >
-                {showOriginal ? 'Original' : 'Hold to compare'}
-              </button>
-            )}
-          </div>
-
-          <div className="card-info">
-            <input
-              className="card-name-input"
-              value={result.name}
-              onChange={(e) => onRename?.(result.id, e.target.value)}
-              aria-label="Rename file"
-              title="Rename file"
-            />
-            <span className="card-dims">{result.width} × {result.height} px</span>
-            {fileSizeLabel && (
-              <span
-                className="card-size"
-                title={`${fileBytes.toLocaleString()} bytes`}
-              >
-                {fileSizeLabel}
-              </span>
-            )}
-          </div>
-
-          <div className="card-actions">
-            <button className="btn btn-crop btn-sm" onClick={() => setShowCropEditor(true)} title="Adjust crop position">
-              <CropIcon /> Adjust
-            </button>
-            <div className="card-action-group">
-              <button
-                className={`btn btn-enhance btn-sm ${isEnhanced ? 'btn-active-mode' : ''}`}
-                onClick={handleEnhance}
-                disabled={enhancing}
-                title="Sharpen & enhance"
-              >
-                {enhancing ? <><span className="mini-spinner" />…</> : <><SparkleIcon />Enhance</>}
-              </button>
+          <div className="thumb-stage">
+            <div className="thumb-wrapper">
+              <img src={activeURL} alt={safeName} width={tw} height={th} />
               {isEnhanced && (
-                <button className="btn btn-ghost btn-sm btn-reset" onClick={() => setShowEnhanced(false)} title="Reset enhance">
-                  ↩
+                <button
+                  className="compare-btn"
+                  onMouseDown={() => setShowOriginal(true)}
+                  onMouseUp={() => setShowOriginal(false)}
+                  onMouseLeave={() => setShowOriginal(false)}
+                  onTouchStart={() => setShowOriginal(true)}
+                  onTouchEnd={() => setShowOriginal(false)}
+                >
+                  {showOriginal ? 'Original' : 'Hold to compare'}
                 </button>
               )}
             </div>
-            <button
-              className="btn btn-ghost btn-sm btn-download"
-              onClick={() => downloadDataURL(activeURL, filename)}
-              title={fileSizeLabel ? `Download (${fileSizeLabel})` : 'Download'}
-            >
-              <DownloadIcon /> Download
-            </button>
-            {geoLocation && (
-              <button
-                className="btn btn-geo btn-sm"
-                onClick={handleGeotagDownload}
-                disabled={geoBusy}
-                title={`Download geotagged ${format.toUpperCase()}`}
-              >
-                {geoBusy ? <><span className="mini-spinner" />…</> : <><PinIcon /> Geo</>}
+          </div>
+
+          <div className="card-body">
+            <div className="card-info">
+              <input
+                className="card-name-input"
+                value={result.name}
+                onChange={(e) => onRename?.(result.id, e.target.value)}
+                aria-label="Rename file"
+                title="Rename file"
+              />
+              <div className="card-meta">
+                <span className="card-dims">{result.width} × {result.height} px</span>
+                {fileSizeLabel && (
+                  <span
+                    className="card-size"
+                    title={`${fileBytes.toLocaleString()} bytes`}
+                  >
+                    {fileSizeLabel}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="card-actions">
+              <button className="btn btn-crop btn-sm" onClick={() => setShowCropEditor(true)} title="Adjust crop position">
+                <CropIcon /> Adjust
               </button>
-            )}
+              <div className="card-action-group">
+                <button
+                  className={`btn btn-enhance btn-sm ${isEnhanced ? 'btn-active-mode' : ''}`}
+                  onClick={handleEnhance}
+                  disabled={enhancing}
+                  title="Sharpen & enhance"
+                >
+                  {enhancing ? <><span className="mini-spinner" />…</> : <><SparkleIcon />Enhance</>}
+                </button>
+                {isEnhanced && (
+                  <button className="btn btn-ghost btn-sm btn-reset" onClick={() => setShowEnhanced(false)} title="Reset enhance">
+                    ↩
+                  </button>
+                )}
+              </div>
+              <button
+                className="btn btn-ghost btn-sm btn-download"
+                onClick={() => downloadDataURL(activeURL, filename)}
+                title={fileSizeLabel ? `Download (${fileSizeLabel})` : 'Download'}
+              >
+                <DownloadIcon /> Download
+              </button>
+              {geoLocation && (
+                <button
+                  className="btn btn-geo btn-sm"
+                  onClick={handleGeotagDownload}
+                  disabled={geoBusy}
+                  title={`Download geotagged ${format.toUpperCase()}`}
+                >
+                  {geoBusy ? <><span className="mini-spinner" />…</> : <><PinIcon /> Geo</>}
+                </button>
+              )}
+            </div>
           </div>
         </>
       )}
@@ -1252,6 +1258,13 @@ export default function App() {
             </div>
 
             <div className="section-divider" />
+
+            {!processing && results.length > 0 && (
+              <div className="results-gallery-head">
+                <h2 className="results-gallery-title">Resized outputs</h2>
+                <span className="results-gallery-count">{results.length} size{results.length === 1 ? '' : 's'}</span>
+              </div>
+            )}
 
             {processing ? (
               <div className="processing-state"><div className="spinner" /><p>Processing images…</p></div>
