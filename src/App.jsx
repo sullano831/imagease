@@ -486,6 +486,7 @@ export default function App() {
   const [customSizes, setCustomSizes] = useState([{ id: Date.now(), name: '', width: '', height: '' }])
   const [format, setFormat] = useState('webp')
   const [quality, setQuality] = useState(DEFAULT_EXPORT_QUALITY)
+  const [qualityDraft, setQualityDraft] = useState(null)
   const [processing, setProcessing] = useState(false)
   const [enhancingAll, setEnhancingAll] = useState(false)
   const [showCustom, setShowCustom] = useState(false)
@@ -661,6 +662,34 @@ export default function App() {
     setProcessing(true)
     setResults(runProcess(sourceImage.img, buildSizes(customSizes), mime, q))
     setProcessing(false)
+  }
+
+  const qualityPercentDisplay = () => (
+    quality <= MIN_EXPORT_QUALITY + 0.001 ? 0 : Math.round(quality * 100)
+  )
+
+  const applyQualityPercent = (raw) => {
+    const trimmed = String(raw ?? '').trim()
+    if (trimmed === '') {
+      setQualityDraft(null)
+      return
+    }
+    const n = Number.parseInt(trimmed, 10)
+    if (Number.isNaN(n)) {
+      setQualityDraft(null)
+      return
+    }
+    const clamped = Math.max(0, Math.min(100, n))
+    const q = clamped === 0 ? MIN_EXPORT_QUALITY : clamped / 100
+    handleQualityChange(q)
+    setQualityDraft(null)
+  }
+
+  const stepQualityPercent = (delta) => {
+    const current = qualityPercentDisplay()
+    const next = Math.max(0, Math.min(100, current + delta))
+    setQualityDraft(String(next))
+    applyQualityPercent(next)
   }
 
   const handleEnhanced = (id, enhancedURL) =>
@@ -874,7 +903,7 @@ export default function App() {
               title="Upload history"
             >
               <HistoryIcon />
-              History
+              <span className="history-nav-label">History</span>
               {historyCount > 0 && <span className="history-count">{historyCount}</span>}
             </button>
             <button className="theme-toggle" onClick={() => setDarkMode(d => !d)} aria-label="Toggle theme">
@@ -1044,33 +1073,49 @@ export default function App() {
                 </div>
 
                 <div className={`quality-selector ${format === 'png' ? 'is-disabled' : ''}`}>
-                  <label className="ctrl-label" htmlFor="quality-slider">
+                  <label className="ctrl-label" htmlFor="quality-percent">
                     Quality
-                    <span className="quality-value">
-                      {format === 'png'
-                        ? 'N/A (PNG)'
-                        : quality <= MIN_EXPORT_QUALITY + 0.001
-                          ? '0%'
-                          : `${Math.round(quality * 100)}%`}
-                    </span>
                   </label>
-                  <div className="quality-row">
-                    <span className="quality-hint">Low</span>
-                    <input
-                      id="quality-slider"
-                      className="quality-slider"
-                      type="range"
-                      min={MIN_EXPORT_QUALITY}
-                      max={MAX_EXPORT_QUALITY}
-                      step="0.01"
-                      value={quality}
-                      disabled={format === 'png'}
-                      onChange={(e) => handleQualityChange(e.target.value)}
-                      aria-label="Output quality"
-                      title={format === 'png' ? 'PNG is lossless — quality does not apply' : 'Lower quality reduces file size. Lowest aims for ~10 KB.'}
-                    />
-                    <span className="quality-hint">High</span>
-                  </div>
+                  {format === 'png' ? (
+                    <span className="quality-na">N/A (lossless)</span>
+                  ) : (
+                    <div className="quality-input-row">
+                      <input
+                        id="quality-percent"
+                        className="input-field quality-percent-input"
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={qualityDraft ?? qualityPercentDisplay()}
+                        disabled={format === 'png'}
+                        onFocus={() => setQualityDraft(String(qualityPercentDisplay()))}
+                        onChange={(e) => setQualityDraft(e.target.value)}
+                        onBlur={() => applyQualityPercent(qualityDraft ?? qualityPercentDisplay())}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            applyQualityPercent(qualityDraft ?? e.currentTarget.value)
+                            e.currentTarget.blur()
+                            return
+                          }
+                          if (e.key === 'ArrowUp') {
+                            e.preventDefault()
+                            stepQualityPercent(1)
+                            return
+                          }
+                          if (e.key === 'ArrowDown') {
+                            e.preventDefault()
+                            stepQualityPercent(-1)
+                          }
+                        }}
+                        aria-label="Output quality percent"
+                        title="Type 0–100 or use arrow keys. 0% aims for ~10 KB."
+                      />
+                      <span className="quality-percent-suffix">%</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
