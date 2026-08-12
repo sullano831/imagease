@@ -1060,8 +1060,8 @@ export default function App() {
 
             {/* Controls */}
             <div className="controls-bar">
-              <div className="controls-left">
-                <div className="format-selector">
+              <div className="controls-settings">
+                <div className="control-field format-selector">
                   <label className="ctrl-label">Output format</label>
                   <div className="format-pills">
                     {['webp', 'png', 'jpeg'].map(f => (
@@ -1072,14 +1072,14 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className={`quality-selector ${format === 'png' ? 'is-disabled' : ''}`}>
+                <div className={`control-field quality-selector ${format === 'png' ? 'is-disabled' : ''}`}>
                   <label className="ctrl-label" htmlFor="quality-percent">
                     Quality
                   </label>
                   {format === 'png' ? (
                     <span className="quality-na">N/A (lossless)</span>
                   ) : (
-                    <div className="quality-input-row">
+                    <div className="quality-input-wrap">
                       <input
                         id="quality-percent"
                         className="input-field quality-percent-input"
@@ -1113,35 +1113,37 @@ export default function App() {
                         aria-label="Output quality percent"
                         title="Type 0–100 or use arrow keys. 0% aims for ~10 KB."
                       />
-                      <span className="quality-percent-suffix">%</span>
+                      <span className="quality-percent-suffix" aria-hidden="true">%</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="controls-right">
+              <div className="controls-divider" aria-hidden="true" />
+
+              <div className="controls-actions">
                 {results.length > 0 && (
                   enhancingAll ? (
-                    <button className="btn btn-enhance" disabled>
+                    <button className="btn btn-action btn-enhance-all" disabled>
                       <span className="mini-spinner" /> Enhancing…
                     </button>
                   ) : anyEnhanced ? (
-                    <button className="btn btn-ghost" onClick={handleUndoAll}>
+                    <button className="btn btn-action btn-undo-all" onClick={handleUndoAll}>
                       ↩ Undo All
                     </button>
                   ) : (
-                    <button className="btn btn-enhance" onClick={handleEnhanceAll}>
+                    <button className="btn btn-action btn-enhance-all" onClick={handleEnhanceAll}>
                       <SparkleIcon size={14} /> Enhance All
                     </button>
                   )
                 )}
                 {results.length > 0 && (
-                  <button className="btn btn-primary" onClick={() => openZipModal('all')}>
+                  <button className="btn btn-action btn-download-all" onClick={() => openZipModal('all')}>
                     <DownloadIcon /> Download All (ZIP)
                   </button>
                 )}
                 {results.length > 0 && geoSelected && (
-                  <button className="btn btn-geo" onClick={() => openZipModal('geotagged')} disabled={geoZipBusy}>
+                  <button className="btn btn-action btn-geo-all" onClick={() => openZipModal('geotagged')} disabled={geoZipBusy}>
                     {geoZipBusy
                       ? <><span className="mini-spinner" /> Geotagging…</>
                       : <><PinIcon size={14} /> Download All Geotagged</>}
