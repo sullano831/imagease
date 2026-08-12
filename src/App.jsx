@@ -586,6 +586,49 @@ export default function App() {
   const onFileChange = (e) => { handleFile(e.target.files?.[0]); e.target.value = '' }
   const onDrop = (e) => { e.preventDefault(); setIsDragging(false); handleFile(e.dataTransfer.files?.[0]) }
 
+  // Paste image from clipboard (Ctrl/Cmd+V) on the upload screen
+  useEffect(() => {
+    if (view !== 'home' || sourceImage) return undefined
+
+    const onPaste = (e) => {
+      const target = e.target
+      if (
+        target instanceof HTMLInputElement
+        || target instanceof HTMLTextAreaElement
+        || target?.isContentEditable
+      ) {
+        return
+      }
+
+      const items = e.clipboardData?.items
+      if (!items?.length) return
+
+      let imageFile = null
+      for (const item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+          imageFile = item.getAsFile()
+          break
+        }
+      }
+      if (!imageFile) return
+
+      e.preventDefault()
+      const type = imageFile.type || 'image/png'
+      const ext = type.includes('jpeg') || type.includes('jpg')
+        ? 'jpg'
+        : type.includes('webp')
+          ? 'webp'
+          : 'png'
+      const named = imageFile.name && imageFile.name !== 'image.png'
+        ? imageFile
+        : new File([imageFile], `pasted-image.${ext}`, { type })
+      handleFile(named)
+    }
+
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [view, sourceImage, handleFile])
+
   const reprocess = () => {
     if (!sourceImage) return
     setProcessing(true)
@@ -876,7 +919,7 @@ export default function App() {
                 <div className="upload-icon-wrap"><UploadIcon /></div>
                 <div className="upload-copy">
                   <p className="upload-label">Rest your image here</p>
-                  <p className="upload-hint">JPG · PNG · WEBP</p>
+                  <p className="upload-hint">JPG · PNG · WEBP · or paste (Ctrl/Cmd+V)</p>
                 </div>
                 <span className="upload-browse">Choose a photo</span>
               </div>
