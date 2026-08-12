@@ -1083,9 +1083,7 @@ body {
 .btn-enhance:hover { background: var(--accent-hover); }
 .btn-enhance:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
 .btn-active-mode {
-  box-shadow: none !important;
-  outline: 2px solid color-mix(in srgb, #fff 45%, transparent);
-  outline-offset: -3px;
+  box-shadow: var(--shadow-accent), inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent);
 }
 
 .mini-spinner {
@@ -1128,54 +1126,38 @@ body {
   padding-top: 0.55rem;
   border-top: 1px solid var(--glass-border-soft);
 }
-.card-actions > .btn,
-.card-action-group {
-  min-height: 2.35rem; width: 100%; box-sizing: border-box;
-}
 .card-actions > .btn {
+  min-height: 2.35rem;
+  width: 100%;
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
   line-height: 1;
+  overflow: visible;
+  white-space: nowrap;
 }
-.card-action-group {
-  display: flex;
-  align-items: stretch;
-  gap: 0.3rem;
-  min-width: 0;
-}
-.card-action-group .btn-enhance {
-  flex: 1 1 auto;
-  min-width: 0;
-  height: auto;
+.card-actions > .btn .btn-label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.35rem;
+  min-width: 0;
   line-height: 1;
-  padding-inline: 0.45rem;
 }
-.card-action-group .btn-enhance svg,
-.card-action-group .btn-enhance .mini-spinner {
+.card-actions > .btn svg,
+.card-actions > .btn .mini-spinner {
   flex-shrink: 0;
 }
 .card-actions .btn-sm {
-  padding: 0.45rem 0.55rem;
+  padding: 0.5rem 0.65rem;
   font-size: 0.78rem;
   border-radius: 10px;
   line-height: 1;
 }
 .card-actions .btn-download:only-of-type,
 .card-actions:not(:has(.btn-geo)) .btn-download { grid-column: 1 / -1; }
-.btn-reset {
-  flex: 0 0 2.35rem;
-  width: 2.35rem;
-  min-width: 2.35rem;
-  padding: 0 !important;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
 .btn-icon { padding: 0.38rem 0.55rem; }
 
 .card-actions .btn-crop,
@@ -1207,8 +1189,7 @@ body {
   background: var(--accent);
   border-color: transparent;
   color: #fff;
-  outline: 2px solid color-mix(in srgb, #fff 40%, transparent);
-  outline-offset: -3px;
+  box-shadow: var(--shadow-accent), inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent);
 }
 .card-actions .btn-geo {
   background: var(--accent-soft);
@@ -1836,16 +1817,10 @@ body {
     gap: 0.4rem;
     padding-top: 0.5rem;
   }
-  .card-actions > .btn,
-  .card-action-group { min-height: 2.45rem; }
+  .card-actions > .btn { min-height: 2.45rem; }
   .card-actions .btn-sm {
     padding: 0.5rem 0.55rem;
     font-size: 0.78rem;
-  }
-  .btn-reset {
-    flex-basis: 2.45rem;
-    width: 2.45rem;
-    min-width: 2.45rem;
   }
 
   .side-toggles .side-toggle { width: 100%; max-width: none; }

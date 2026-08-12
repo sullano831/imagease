@@ -330,6 +330,11 @@ function ImageCard({ result, format, mime, quality, sourceImg, sourceImgSrc, onE
   const filename = `${safeName}${isEnhanced ? '-enhanced' : ''}.${EXT_MAP[format]}`
 
   const handleEnhance = async () => {
+    // Toggle: click again to undo / show original
+    if (isEnhanced) {
+      setShowEnhanced(false)
+      return
+    }
     if (result.enhancedURL) {
       setShowEnhanced(true)
       return
@@ -416,25 +421,19 @@ function ImageCard({ result, format, mime, quality, sourceImg, sourceImgSrc, onE
               <button className="btn btn-crop btn-sm" onClick={() => setShowCropEditor(true)} title="Adjust crop position">
                 <CropIcon /> Adjust
               </button>
-            <div className="card-action-group">
               <button
                 className={`btn btn-enhance btn-sm ${isEnhanced ? 'btn-active-mode' : ''}`}
                 onClick={handleEnhance}
                 disabled={enhancing}
-                title="Sharpen & enhance"
+                title={isEnhanced ? 'Click again to undo enhance' : 'Sharpen & enhance'}
+                aria-pressed={isEnhanced}
               >
                 {enhancing ? (
                   <span className="btn-label"><span className="mini-spinner" />…</span>
                 ) : (
-                  <span className="btn-label"><SparkleIcon />Enhance</span>
+                  <span className="btn-label"><SparkleIcon />{isEnhanced ? 'Enhanced' : 'Enhance'}</span>
                 )}
               </button>
-              {isEnhanced && (
-                <button className="btn btn-ghost btn-sm btn-reset" onClick={() => setShowEnhanced(false)} title="Reset enhance">
-                  ↩
-                </button>
-              )}
-            </div>
               <button
                 className="btn btn-ghost btn-sm btn-download"
                 onClick={() => downloadDataURL(activeURL, filename)}
