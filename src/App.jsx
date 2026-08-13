@@ -887,11 +887,7 @@ export default function App() {
             title="Home"
           >
             <span className="logo-mark" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="4"/>
-                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/>
-                <polyline points="21 15 16 10 5 21"/>
-              </svg>
+              <img src="/imagease_logo.svg" alt="" width="34" height="34" />
             </span>
             <span className="logo-word">ImagEase</span>
           </button>
@@ -1400,7 +1396,10 @@ export default function App() {
       )}
 
       <footer className="app-footer">
-        <span className="footer-brand">ImagEase</span>
+        <span className="footer-brand">
+          <img src="/imagease_logo.svg" alt="" className="footer-logo" width="22" height="22" />
+          ImagEase
+        </span>
         <span className="footer-credit">Made by Angelica Sullano</span>
       </footer>
     </div>
